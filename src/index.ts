@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
@@ -22,12 +22,16 @@ app.use(express.static('public'));
 // Favicon handler
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
-// Initialize Orchestrator
+// Initialize Event System
+import { initializeWorker } from './events/worker.js';
 initializeOrchestrator();
+initializeWorker();
 
 // API Routes
 import { LeadSchema } from './validation.js';
 import { logger } from './logger.js';
+
+import { logAgentStep } from './agent_engine/logger.js';
 
 app.post('/api/leads', (req, res) => {
   try {
@@ -47,13 +51,22 @@ app.post('/api/leads', (req, res) => {
 
     const { name, email, phone, message } = result.data;
     
-    const info = db.prepare('INSERT INTO leads (name, email, phone, message) VALUES (?, ?, ?, ?)')
-      .run(name, email, phone, message);
+    const info = db.prepare('INSERT INTO leads (name, email, phone, message, status) VALUES (?, ?, ?, ?, ?)')
+      .run(name, email, phone, message, 'New');
     
     const newLead = { id: info.lastInsertRowid, name, email, phone, message };
     
+    // Write to DB Logs for Dashboard visibility
+    logAgentStep(newLead.id as number, 'System', 'LEAD_STORED', `New lead captured: ${email}`, { message });
+    
     logger.info('LEAD_STORED', { lead_id: newLead.id, email });
-    eventBus.emit(EVENTS.LEAD_CREATED, newLead);
+    
+    // Emit using new standard structure
+    eventBus.emitFluxEvent(
+      EVENTS.INPUT.LEAD_CREATED, 
+      newLead, 
+      `lead_${newLead.id}`
+    );
 
     res.status(201).json(newLead);
   } catch (error) {
@@ -71,10 +84,24 @@ app.get('/api/stats', (req, res) => {
   const totalLeads = db.prepare('SELECT COUNT(*) as count FROM leads').get() as any;
   const totalResponses = db.prepare("SELECT COUNT(*) as count FROM agent_logs WHERE step = 'TOOL_EXECUTED'").get() as any;
   
+  // Calculate average duration from successful completions
+  const logs = db.prepare("SELECT details FROM agent_logs WHERE step = 'TOOL_EXECUTED'").all() as any[];
+  let avgSpeed = '0s';
+  
+  if (logs.length > 0) {
+    const totalMs = logs.reduce((acc, log) => {
+      try {
+        const d = JSON.parse(log.details);
+        return acc + (parseInt(d.duration) || 0);
+      } catch { return acc; }
+    }, 0);
+    avgSpeed = `${(totalMs / logs.length / 1000).toFixed(1)}s`;
+  }
+  
   res.json({
     totalLeads: totalLeads.count,
     totalResponses: totalResponses.count,
-    avgResponseTime: '1.2s' // Mocked for MVP
+    avgResponseTime: avgSpeed
   });
 });
 

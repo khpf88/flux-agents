@@ -7,27 +7,29 @@
 - [x] TypeScript config
 - [x] .env & .gitignore
 
-## Phase 2: Refined Backend Core
-- [x] Database Schema (Leads, Logs, Config)
-- [x] LLM Client (Gemini)
-- [x] Event Bus & Orchestrator
-- [x] Agent Engine (9-step pipeline)
-- [x] Context Bus
-- [x] Tool Executor (Unified interface)
+## Phase 2: Core Refactor (Event-Driven)
+- [x] Unified Global Event Bus (EventEmitter)
+- [x] Decoupled Orchestrator (Input -> Process)
+- [x] Dedicated Context Bus Service
+- [x] Dual-Memory Model (Context + Agent Experience)
+- [x] Modular Tool Registry
 
-## Phase 3: Hardening (Production-Ready)
-- [x] Zod Input Validation
-- [x] Structured JSON Logging
-- [x] Async Worker Queue (P-Queue)
-- [x] LLM Output Guardrails (Zod parsing)
-- [x] Tool Allowlisting
-- [x] Error Categorization & Handling
+## Phase 3: Hardening & Reliability
+- [x] Event IDs & Correlation IDs
+- [x] Idempotency Protection
+- [x] Structured Failure Handling (AGENT_FAILED, TOOL_FAILED)
+- [x] Retry Mechanism (MVP)
+- [x] Removal of "Context Ready" events (Pure sync data assembly)
 
-## Phase 4: Frontend
-- [x] Lead Form (Validated)
-- [x] Dashboard (Timeline-style logs)
+## Phase 4: Frontend Polish (v1.4)
+- [x] Color-coded Event Stream (Input, Process, Output)
+- [x] Lead Journey Header (Name, Email, Message)
+- [x] SMS Message Previews
+- [x] Real-time Status Updates (Followed-up badge)
+- [x] Dynamic Performance Metrics (Avg Speed, ⚡ Duration)
 
-## Phase 5: Validation
-- [x] End-to-end testing (Happy path)
-- [x] Error scenario testing (Validation/LLM/Tool failures)
-- [x] Final Audit
+## Phase 5: Production & Scale
+- [x] Merge to Main
+- [x] Documentation Update
+- [ ] Redis + BullMQ (For multi-node scaling)
+- [ ] Advanced Agent Learning algorithms

@@ -3,15 +3,18 @@
 ## 1. Introduction
 Flux Agents is a multi-tenant AI-powered SaaS platform for small business automation.
 
-## 2. Core Concept
-Modular AI Agent Blocks that interact via a shared Context Bus.
+## 2. Core Concept: Event-Driven Intelligence
+The system is built on a decoupled, modular architecture where components communicate via a unified Global Event Bus and a specialized Context Bus.
 
-## 3. MVP Features
-- **Validated Lead Capture**: Form to collect name, email, phone, and message with strict Zod validation.
-- **Async Event Trigger**: Lead creation enqueues a background job using P-Queue.
-- **Structured Logging**: All system and agent events are logged in structured JSON and persistent SQLite.
-- **Agent Logic**: Personalized SMS follow-up with LLM guardrails and structured tool output.
-- **Dashboard**: Real-time admin view with top-level metrics (Leads, Responses, Speed) and interactive log filtering.
+## 3. Key Features
+- **Event-Driven Workflow**: Uses a single unified event bus with `input`, `process`, `output`, and `system` event categories.
+- **Traceable Execution**: Every action is linked via `eventId`, `correlationId`, and `causationId`.
+- **Idempotency**: Prevents duplicate processing of events to ensure system reliability.
+- **Dual-Memory Model**:
+  - **Context Memory**: Stores business state and lead data.
+  - **Agent Memory**: Stores execution outcomes and patterns for experiential learning.
+- **Validated Capture**: Strict Zod-based input validation with international phone support.
+- **Interactive Dashboard (v1.4)**: Real-time event stream, lead status tracking, and AI reasoning transparency.
 
 ## 4. Technical Requirements
 - Node.js / TypeScript (ESM)

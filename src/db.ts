@@ -28,6 +28,15 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS agent_memories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_template_id TEXT,
+    agent_instance_id TEXT,
+    memory_type TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Seed config

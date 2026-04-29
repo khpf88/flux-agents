@@ -1,10 +1,47 @@
-import { eventBus, EVENTS } from './event_bus.js';
-import { enqueueAgentTask } from './worker.js';
+import { eventBus, EVENTS, FluxEvent } from './event_bus.js';
 import { logger } from '../logger.js';
 
+/**
+ * Orchestrator
+ * Responsibilities:
+ * - Subscribe to Input Events
+ * - Determine Agent triggers
+ * - Emit Processing Events (with correlation and causation)
+ */
 export function initializeOrchestrator() {
-  eventBus.on(EVENTS.LEAD_CREATED, async (lead) => {
-    logger.info('ORCHESTRATOR_TRIGGERED', { lead_id: lead.id });
-    enqueueAgentTask('lead_followup_agent', { lead_id: lead.id });
+  
+  // 1. Lead Created -> Trigger Agent
+  eventBus.subscribe(EVENTS.INPUT.LEAD_CREATED, (event: FluxEvent) => {
+    const lead = event.payload;
+    logger.info('ORCHESTRATOR_MAPPING', { lead_id: lead.id, correlationId: event.correlationId });
+
+    // Decide which agent to trigger
+    const agentId = 'lead_followup_agent';
+
+    eventBus.emitFluxEvent(
+      EVENTS.PROCESS.AGENT_TRIGGERED,
+      { agentId, inputData: { lead_id: lead.id } },
+      event.correlationId,
+      event.eventId // Causation
+    );
+  });
+
+  // 2. Retry Logic (Simple MVP)
+  eventBus.subscribe(EVENTS.SYSTEM.RETRY_REQUESTED, (event: FluxEvent) => {
+    const { agentId, inputData, attempt } = event.payload;
+    
+    if (attempt > 1) {
+      logger.error('RETRY_EXCEEDED', new Error('Max retries reached'), { agentId, correlationId: event.correlationId });
+      return;
+    }
+
+    logger.info('RETRYING_JOB', { agentId, attempt: attempt + 1, correlationId: event.correlationId });
+    
+    eventBus.emitFluxEvent(
+      EVENTS.PROCESS.AGENT_TRIGGERED,
+      { agentId, inputData, attempt: attempt + 1 },
+      event.correlationId,
+      event.eventId
+    );
   });
 }

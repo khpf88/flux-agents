@@ -3,33 +3,28 @@
 ## Base URL
 `http://localhost:3001`
 
+## Event Categories
+Every action in the system is an event.
+
+- `input:*` : Data entry (Lead capture).
+- `process:*`: AI reasoning, decisions, and context prep.
+- `output:*`: External actions (SMS sent).
+- `system:*`: Errors, retries, and maintenance.
+
 ## Endpoints
 
 ### 1. Create Lead
 - **URL**: `/api/leads`
 - **Method**: `POST`
-- **Body**:
-  ```json
-  {
-    "name": "string",
-    "email": "valid email",
-    "phone": "min 8 digits",
-    "message": "min 5 chars"
-  }
-  ```
-- **Description**: Validates input, stores lead, and enqueues a background agent job.
+- **Body**: `{ name, email, phone, message }`
+- **Action**: Triggers the `input:lead_created` event chain.
 
-### 2. List Leads
-- **URL**: `/api/leads`
-- **Method**: `GET`
-- **Description**: Returns all captured leads.
-
-### 3. Activity Logs
+### 2. Activity Logs
 - **URL**: `/api/logs`
 - **Method**: `GET`
-- **Description**: Returns timeline logs with structured tool previews.
+- **Response**: List of events with full `correlationId` tracking and structured tool results.
 
-### 4. Platform Stats
+### 3. Statistics
 - **URL**: `/api/stats`
 - **Method**: `GET`
-- **Description**: Returns top-level metrics for the dashboard.
+- **Metrics**: `totalLeads`, `totalResponses`, `avgResponseTime`.

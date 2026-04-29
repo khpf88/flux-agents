@@ -1,24 +1,26 @@
 # Flux Agents Architecture
 
-## High-Level Design
-The system follows a hardened, event-driven, modular architecture designed for stability and traceability.
+## Refactored Event-Driven Design
+The system has been hardened into a production-grade, decoupled architecture.
 
-## Core Components
-1. **Validation Layer (Zod)**: Enforces data integrity at all entry points.
-2. **Agent Engine**: Executes agent logic using LLM with a strict 9-step pipeline and JSON guardrails.
-3. **Context Bus**: Assembles read-only state (business, lead, history) for agents.
-4. **Worker Queue (P-Queue)**: Manages asynchronous execution of agent tasks to keep the API responsive.
-5. **Orchestrator**: Simple routing mapping events to agent jobs.
-6. **Tool Executor**: Secure registry for executing allowlisted tools.
-7. **Structured Logger**: Produces JSON-line logs for observability.
+## 1. Global Event Bus (Communication)
+- **Unified Pub/Sub**: All modules communicate ONLY via the `GlobalEventBus`.
+- **Event Metadata**: Every event includes `eventId`, `correlationId`, and `causationId`.
+- **Idempotency**: In-memory tracking of processed event IDs to prevent duplicate side-effects.
 
-## System Flow
-1. `Client` -> `POST /api/leads`
-2. `Validation` -> Rejects or Accepts
-3. `Lead Service` -> Persists to `DB`
-4. `Event Bus` -> Emits `LEAD_CREATED`
-5. `Orchestrator` -> Enqueues job to `Worker Queue`
-6. `Worker` -> Picks up job
-7. `Agent Engine` -> `Context` -> `LLM` -> `Validation` -> `Tool Executor`
-8. `Audit Trail` -> Logs written to `agent_logs` and `Structured Logger`
-9. `Dashboard` -> Real-time polling of leads and logs.
+## 2. Context Bus (Data)
+- **Synchronous Assembly**: A dedicated service that aggregates business data, lead history, and agent experience memory at request-time.
+- **No Side-Effects**: The Context Bus is a read-only data assembly layer.
+
+## 3. Execution Pipeline
+1. `POST /api/leads` -> Validate -> Store -> Emit `INPUT.LEAD_CREATED`.
+2. `Orchestrator` -> Receives Input -> Emits `PROCESS.AGENT_TRIGGERED`.
+3. `Worker` -> Enqueues Job -> Executes `Agent Engine`.
+4. `Agent Engine` -> Calls `Context Bus` -> Reasoning -> Decision -> `Tool Executor`.
+5. `Tool Executor` -> Runs Tool -> Emits `OUTPUT` event.
+6. `Finalize` -> Update Lead Status -> Write to `Agent Memory`.
+
+## 4. Observability & Resilience
+- **Timeline Logs**: Real-time visualization of the event chain.
+- **Failure Recovery**: System catches tool/agent crashes and triggers `system:retry_requested` events.
+- **Agent Memory**: Execution outcomes are stored to improve future reasoning.

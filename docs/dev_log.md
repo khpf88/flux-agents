@@ -1,14 +1,15 @@
 # Development Log - Flux Agents
 
-## [2026-04-27] Project Inception
-- Initialized project structure and ESM setup.
-- Defined architecture and FRS.
-- Setup core Agent Engine and Context Bus.
+## [2026-04-27] Initial Build
+- Created basic Lead capture to SMS flow.
 
-## [2026-04-27] System Hardening
-- Integrated Zod for strict API and Agent Decision validation.
-- Implemented structured JSON logging for production observability.
-- Offloaded agent execution to an async worker queue using P-Queue.
-- Hardened Tool Executor with allowlisting.
-- Updated Dashboard to timeline-style log view.
-- Resolved ESM module resolution issues by switching to `tsx`.
+## [2026-04-28] Event-Driven Refactor
+- Implemented Unified Event Bus and Context Bus.
+- Introduced Dual-Memory Model (Experiential learning table).
+- Moved to standard correlation/causation ID tracking.
+
+## [2026-04-29] Hardening & UI Polish (v1.4)
+- Added Idempotency protection to the Event Bus.
+- Implemented retry logic for tool/agent failures.
+- Polished Dashboard with timeline views, SMS previews, and dynamic duration stats.
+- Automated status updates from "New" to "Followed-up".
