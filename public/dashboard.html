@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Flux Agents</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .lead-row { cursor: pointer; transition: background 0.2s; }
+        .lead-row:hover { background-color: #f0f0f0 !important; }
+        .lead-active { background-color: #e2e3e5 !important; font-weight: bold; }
+        .metric-card { border-radius: 10px; border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Flux Agents Admin</a>
+            <span class="text-muted small">v1.2</span>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Metrics Row -->
+        <div class="row mb-4 text-center">
+            <div class="col-md-4">
+                <div class="card metric-card p-3">
+                    <small class="text-muted uppercase">Total Leads</small>
+                    <h2 id="metricLeads">-</h2>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card metric-card p-3">
+                    <small class="text-muted uppercase">AI Responses</small>
+                    <h2 id="metricResponses">-</h2>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card metric-card p-3">
+                    <small class="text-muted uppercase">Avg Speed</small>
+                    <h2 id="metricSpeed">-</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-7">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h3>Recent Leads</h3>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="clearFilter()">Clear Filter</button>
+                </div>
+                <div class="card shadow-sm">
+                    <div class="card-body p-0">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Phone</th>
+                                    <th>Status</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leadsTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-5">
+                <h3>Activity Logs</h3>
+                <div id="logsList" style="max-height: 600px; overflow-y: auto;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedLeadId = null;
+        let allLogs = [];
+
+        async function fetchData() {
+            // Stats
+            const statsRes = await fetch('/api/stats');
+            const stats = await statsRes.json();
+            document.getElementById('metricLeads').innerText = stats.totalLeads;
+            document.getElementById('metricResponses').innerText = stats.totalResponses;
+            document.getElementById('metricSpeed').innerText = stats.avgResponseTime;
+
+            // Leads
+            const leadsRes = await fetch('/api/leads');
+            const leads = await leadsRes.json();
+            const leadsTable = document.getElementById('leadsTable');
+            leadsTable.innerHTML = leads.map(l => `
+                <tr class="lead-row ${selectedLeadId == l.id ? 'lead-active' : ''}" onclick="filterByLead(${l.id})">
+                    <td>${l.name}</td>
+                    <td><small>${l.phone || '-'}</small></td>
+                    <td><span class="badge bg-success">${l.status}</span></td>
+                    <td><small>${new Date(l.created_at).toLocaleDateString()}</small></td>
+                </tr>
+            `).join('');
+
+            // Logs
+            const logsRes = await fetch('/api/logs');
+            allLogs = await logsRes.json();
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const logsList = document.getElementById('logsList');
+            const filteredLogs = selectedLeadId ? allLogs.filter(l => l.lead_id == selectedLeadId) : allLogs;
+            
+            if (filteredLogs.length === 0) {
+                logsList.innerHTML = '<div class="text-center p-5 text-muted">No activity found</div>';
+                return;
+            }
+
+            logsList.innerHTML = filteredLogs.map(l => {
+                let detailsHtml = '';
+                let badgeClass = 'bg-secondary';
+                
+                if (l.step === 'TOOL_EXECUTED') {
+                    badgeClass = 'bg-primary';
+                    try {
+                        const d = JSON.parse(l.details);
+                        const res = d.result;
+                        if (res && res.type === 'sms') {
+                            detailsHtml = `<div class="mt-2 p-2 bg-light border-start border-primary border-4 small italic">
+                                <strong>To:</strong> ${res.recipient}<br>
+                                "${res.message}"
+                            </div>`;
+                        } else if (typeof res === 'string' && res.includes('SMS Sent')) {
+                             // Fallback for older logs
+                             detailsHtml = `<div class="mt-2 p-2 bg-light border-start border-primary border-4 small italic">
+                                ${res}
+                            </div>`;
+                        }
+                    } catch(e) {}
+                }
+
+                return `
+                <div class="card mb-2 shadow-sm border-0 border-start border-4 ${l.step === 'TOOL_EXECUTED' ? 'border-primary' : 'border-info'}">
+                    <div class="card-body p-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="badge ${badgeClass} mb-1">${l.step}</span>
+                            <small class="text-muted">${new Date(l.created_at).toLocaleTimeString()}</small>
+                        </div>
+                        <div class="small fw-bold">${l.agent_name}</div>
+                        <div class="small text-dark">${l.message}</div>
+                        ${detailsHtml}
+                        <div class="text-end mt-1">
+                            <span class="badge bg-light text-dark border small" style="font-size: 0.7rem">⚡ 1.2s</span>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function filterByLead(id) {
+            selectedLeadId = id;
+            fetchData();
+        }
+
+        function clearFilter() {
+            selectedLeadId = null;
+            fetchData();
+        }
+
+        fetchData();
+        setInterval(fetchData, 3000);
+    </script>
+</body>
+</html>
