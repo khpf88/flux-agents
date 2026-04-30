@@ -1,5 +1,4 @@
 import { eventBus, EVENTS, FluxEvent } from './event_bus.js';
-import { enqueueAgentTask } from './worker.js';
 import { logger } from '../logger.js';
 import { logAgentStep } from '../agent_engine/logger.js';
 
@@ -18,8 +17,13 @@ export function initializeOrchestrator() {
     const lead = event.payload;
     logger.info('ORCHESTRATOR_START', { lead_id: lead.id, correlationId: event.correlationId });
 
-    // Step 1: Trigger the central Classifier Agent
-    enqueueAgentTask('intent_classifier_agent', { lead_id: lead.id, message: lead.message });
+    // Step 1: Trigger the central Classifier Agent via Event Bus
+    eventBus.emitFluxEvent(
+      EVENTS.PROCESS.AGENT_TRIGGERED,
+      { agentId: 'intent_classifier_agent', inputData: { lead_id: lead.id, message: lead.message } },
+      event.correlationId,
+      event.eventId
+    );
   });
 
   // 2. Intent Classified -> Route to Downstream Agent(s)
@@ -44,10 +48,19 @@ export function initializeOrchestrator() {
       targetAgents = ['lead_followup_agent'];
     }
 
-    // Trigger each target agent
+    // Trigger each target agent via Event Bus
     targetAgents.forEach((agentId: string) => {
-      logAgentStep(leadId, 'System', 'ROUTING', `Routing to ${agentId}`, { primary_intent, confidence }, event.correlationId);
-      enqueueAgentTask(agentId, { lead_id: leadId });
+      // Normalize agent IDs to lowercase with underscores to match file names
+      const normalizedAgentId = agentId.toLowerCase().replace(/ /g, '_');
+      
+      logAgentStep(leadId, 'System', 'ROUTING', `Routing to ${normalizedAgentId}`, { primary_intent, confidence }, event.correlationId);
+      
+      eventBus.emitFluxEvent(
+        EVENTS.PROCESS.AGENT_TRIGGERED,
+        { agentId: normalizedAgentId, inputData: { lead_id: leadId } },
+        event.correlationId,
+        event.eventId
+      );
     });
   });
 
@@ -56,7 +69,15 @@ export function initializeOrchestrator() {
     const { leadId, slots } = event.payload;
     logger.info('AVAILABILITY_READY', { leadId, slotCount: slots.length });
 
-    enqueueAgentTask('scheduler_agent', { lead_id: leadId, available_slots: slots });
+    eventBus.emitFluxEvent(
+      EVENTS.PROCESS.AGENT_TRIGGERED,
+      { 
+        agentId: 'scheduler_agent', 
+        inputData: { lead_id: leadId, available_slots: slots } 
+      },
+      event.correlationId,
+      event.eventId
+    );
   });
 
   // 4. Retry Logic (Simple MVP)
@@ -69,6 +90,12 @@ export function initializeOrchestrator() {
     }
 
     logger.info('RETRYING_JOB', { agentId, attempt: attempt + 1, correlationId: event.correlationId });
-    enqueueAgentTask(agentId, { ...inputData, attempt: attempt + 1 });
+    
+    eventBus.emitFluxEvent(
+      EVENTS.PROCESS.AGENT_TRIGGERED,
+      { agentId, inputData, attempt: attempt + 1 },
+      event.correlationId,
+      event.eventId
+    );
   });
 }
