@@ -4,7 +4,7 @@ import { getContext } from '../context/bus.js';
 import { generateContent } from './llm_client.js';
 import { executeTool } from '../tools/executor.js';
 import { logger } from '../logger.js';
-import { AgentDecisionSchema } from '../validation.js';
+import { AgentDecisionSchema, IntentClassificationSchema } from '../validation.js';
 import { logAgentStep } from './logger.js';
 import { eventBus, EVENTS } from '../events/event_bus.js';
 import db from '../db.js';
@@ -15,6 +15,7 @@ import db from '../db.js';
  * - Load Agent Definition
  * - Fetch Context from Context Bus (Synchronous)
  * - Run LLM reasoning loop
+ * - Validate structured output (Decision or Classification)
  * - Record to Agent Memory
  */
 export async function runAgent(agentTemplateId: string, inputData: any, correlationId: string, causationId: string) {
@@ -25,94 +26,104 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
   const startTime = Date.now();
 
   try {
-    // 1. Context Assembly (Synchronous Service Call)
-    // NO EVENT EMITTED HERE
+    // 1. Context Assembly
     const context = await getContext({ leadId, agentTemplateId });
+    
     // 2. Reasoning Prompt
     const prompt = `
       You are an AI Agent: ${JSON.stringify(agentDef.identity)}
-
+      
       SYSTEM TIME (UTC): ${new Date().toISOString()}
       BUSINESS TIMEZONE: ${context.business_profile.timezone || 'UTC'}
-
+      
       INPUT DATA: ${JSON.stringify(inputData)}
-
+      
       CONTEXT:
       Business: ${JSON.stringify(context.business_profile)}
       Customer: ${JSON.stringify(context.customer_profile)}
       Recent Memory: ${JSON.stringify(context.agent_memory)}
       Schedule Info: ${JSON.stringify(context.schedule)}
-
-      TOOLS: ${JSON.stringify(agentDef.tools)}
-
-      TASK: ${agentDef.reasoning}
-
-      INSTRUCTIONS:
-      - If suggesting slots, convert UTC slots to the Business Timezone for the user.
-      - Output ONLY raw JSON matching { "tool": "string", "parameters": { ... } }
+      
+      TASK: ${agentDef.objective || agentDef.reasoning}
+      REASONING RULES: ${JSON.stringify(agentDef.reasoning_rules || [])}
+      
+      OUTPUT FORMAT: JSON ONLY matching this schema:
+      ${JSON.stringify(agentDef.output_schema)}
     `;
 
-    logAgentStep(leadId, name, 'REASONING', 'Analyzing context and memory...', undefined, correlationId);
+    logAgentStep(leadId, name, 'REASONING', 'Analyzing data for structured output...', undefined, correlationId);
     const response = await generateContent(prompt);
     
-    // 3. Decision & Validation
+    // 3. Decision/Classification & Validation
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('LLM_MALFORMED_JSON');
-    
-    const parseResult = AgentDecisionSchema.safeParse(JSON.parse(jsonMatch[0]));
-    if (!parseResult.success) {
-      throw new Error(`AGENT_DECISION_VALIDATION_FAILED: ${JSON.stringify(parseResult.error.issues)}`);
+    const rawResult = JSON.parse(jsonMatch[0]);
+
+    let validatedResult;
+    if (agentTemplateId === 'intent_classifier_agent') {
+      const parseResult = IntentClassificationSchema.safeParse(rawResult);
+      if (!parseResult.success) {
+        throw new Error(`INTENT_CLASSIFICATION_VALIDATION_FAILED: ${JSON.stringify(parseResult.error.issues)}`);
+      }
+      validatedResult = parseResult.data;
+      
+      // Emit Intent Classified Event
+      eventBus.emitFluxEvent(EVENTS.PROCESS.INTENT_CLASSIFIED, { leadId, intent: validatedResult }, correlationId, causationId);
+      logAgentStep(leadId, name, 'INTENT_CLASSIFIED', `Classified as ${validatedResult.primary_intent}`, validatedResult, correlationId);
+      
+      // Update Lead with Intent info for Dashboard
+      try {
+        db.prepare("UPDATE leads SET intent = ?, intent_confidence = ? WHERE id = ?")
+          .run(validatedResult.primary_intent, validatedResult.confidence, leadId);
+      } catch (dbErr) {
+        logger.error('DB_UPDATE_INTENT_FAILED', dbErr, { leadId });
+      }
+
+      return validatedResult;
+    } else {
+      // Standard Agent Decision (Tool Call)
+      const parseResult = AgentDecisionSchema.safeParse(rawResult);
+      if (!parseResult.success) {
+        throw new Error(`AGENT_DECISION_VALIDATION_FAILED: ${JSON.stringify(parseResult.error.issues)}`);
+      }
+      const decision = parseResult.data;
+      
+      eventBus.emitFluxEvent(EVENTS.PROCESS.DECISION_MADE, { decision }, correlationId, causationId);
+      logAgentStep(leadId, name, 'DECISION', `Agent selected tool: ${decision.tool}`, decision.parameters, correlationId);
+
+      // 4. Tool Execution
+      const toolResult = await executeTool(decision.tool, decision.parameters, leadId, correlationId, causationId);
+      
+      // 5. Agent Memory Write
+      db.prepare(`
+        INSERT INTO agent_memories (agent_template_id, memory_type, content)
+        VALUES (?, ?, ?)
+      `).run(agentTemplateId, 'EXECUTION_OUTCOME', JSON.stringify({
+        leadId,
+        tool: decision.tool,
+        duration: Date.now() - startTime,
+        status: 'success'
+      }));
+
+      eventBus.emitFluxEvent(EVENTS.OUTPUT.FOLLOWUP_COMPLETED, { toolResult }, correlationId, causationId);
+      
+      const logStep = toolResult.type === 'availability' ? 'AVAILABILITY_CHECKED' : 
+                     toolResult.type === 'booking' ? 'BOOKING_CREATED' : 'TOOL_EXECUTED';
+
+      logAgentStep(leadId, name, logStep, 'Action completed', { 
+        duration: `${Date.now() - startTime}ms`,
+        result: toolResult 
+      }, correlationId);
+
+      // Update Lead Status
+      try {
+        db.prepare("UPDATE leads SET status = 'Followed-up' WHERE id = ?").run(leadId);
+      } catch (dbErr) {
+        logger.error('STATUS_UPDATE_FAILED', dbErr, { leadId });
+      }
+
+      return toolResult;
     }
-    const decision = parseResult.data;
-    
-    // Emit Decision Made
-    eventBus.emitFluxEvent(EVENTS.PROCESS.DECISION_MADE, { decision }, correlationId, causationId);
-    logAgentStep(leadId, name, 'DECISION', `Agent selected tool: ${decision.tool}`, decision.parameters, correlationId);
-
-    // 4. Tool Execution with internal failure handling
-    let toolResult;
-    try {
-      toolResult = await executeTool(decision.tool, decision.parameters, leadId, correlationId, causationId);
-    } catch (toolError: any) {
-      eventBus.emitFluxEvent(
-        EVENTS.SYSTEM.TOOL_FAILED, 
-        { tool: decision.tool, error: toolError.message }, 
-        correlationId, 
-        causationId
-      );
-      throw toolError;
-    }
-    
-    // 5. Agent Memory Write
-    db.prepare(`
-      INSERT INTO agent_memories (agent_template_id, memory_type, content)
-      VALUES (?, ?, ?)
-    `).run(agentTemplateId, 'EXECUTION_OUTCOME', JSON.stringify({
-      leadId,
-      tool: decision.tool,
-      duration: Date.now() - startTime,
-      status: 'success'
-    }));
-
-    eventBus.emitFluxEvent(EVENTS.OUTPUT.FOLLOWUP_COMPLETED, { toolResult }, correlationId, causationId);
-    
-    // Determine step name for logging (e.g. AVAILABILITY_CHECKED)
-    const logStep = toolResult.type === 'availability' ? 'AVAILABILITY_CHECKED' : 
-                   toolResult.type === 'booking' ? 'BOOKING_CREATED' : 'TOOL_EXECUTED';
-
-    logAgentStep(leadId, name, logStep, 'Action completed', { 
-      duration: `${Date.now() - startTime}ms`,
-      result: toolResult 
-    }, correlationId);
-
-    // Update Lead Status
-    try {
-      db.prepare("UPDATE leads SET status = 'Followed-up' WHERE id = ?").run(leadId);
-    } catch (dbErr) {
-      logger.error('STATUS_UPDATE_FAILED', dbErr, { leadId });
-    }
-
-    return toolResult;
   } catch (error: any) {
     eventBus.emitFluxEvent(EVENTS.SYSTEM.AGENT_FAILED, { error: error.message }, correlationId, causationId);
     logAgentStep(leadId, name, 'ERROR', 'Execution failed', { error: error.message }, correlationId);

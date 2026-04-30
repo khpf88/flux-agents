@@ -1,66 +1,62 @@
 import { eventBus, EVENTS, FluxEvent } from './event_bus.js';
 import { enqueueAgentTask } from './worker.js';
 import { logger } from '../logger.js';
-import { classifyIntent } from '../agent_engine/intent.js';
 import { logAgentStep } from '../agent_engine/logger.js';
 
 /**
  * Orchestrator
  * Responsibilities:
  * - Subscribe to Input Events
- * - Determine Agent triggers via Intent Classification
- * - Emit Processing Events (with correlation and causation)
+ * - Route to Intent Classifier
+ * - Handle Intent Routing Decisions
+ * - Manage Retries
  */
 export function initializeOrchestrator() {
   
-  // 1. Lead Created -> Classify Intent
+  // 1. Lead Created -> Trigger Intent Classifier Agent
   eventBus.subscribe(EVENTS.INPUT.LEAD_CREATED, async (event: FluxEvent) => {
     const lead = event.payload;
-    logger.info('ORCHESTRATOR_CLASSIFYING', { lead_id: lead.id, correlationId: event.correlationId });
+    logger.info('ORCHESTRATOR_START', { lead_id: lead.id, correlationId: event.correlationId });
 
-    // AI Intent Classification
-    const { intent, confidence } = await classifyIntent(lead.message || '');
-
-    // Log for Dashboard
-    logAgentStep(lead.id, 'System', 'INTENT_CLASSIFIED', `Classified as ${intent} (Confidence: ${Math.round(confidence * 100)}%)`, { intent, confidence }, event.correlationId);
-
-    eventBus.emitFluxEvent(
-      EVENTS.PROCESS.INTENT_CLASSIFIED,
-      { intent, confidence, lead_id: lead.id },
-      event.correlationId,
-      event.eventId
-    );
+    // Step 1: Trigger the central Classifier Agent
+    enqueueAgentTask('intent_classifier_agent', { lead_id: lead.id, message: lead.message });
   });
 
-  // 2. Intent Classified -> Route to Agent
+  // 2. Intent Classified -> Route to Downstream Agent(s)
   eventBus.subscribe(EVENTS.PROCESS.INTENT_CLASSIFIED, (event: FluxEvent) => {
-    const { intent, lead_id } = event.payload;
+    const { intent, leadId } = event.payload;
+    const { primary_intent, confidence, routing } = intent;
     
-    const agentId = intent === 'scheduling' ? 'scheduler_agent' : 'lead_followup_agent';
+    logger.info('ROUTING_DECISION', { leadId, primary_intent, confidence });
 
-    eventBus.emitFluxEvent(
-      EVENTS.PROCESS.AGENT_TRIGGERED,
-      { agentId, inputData: { lead_id } },
-      event.correlationId,
-      event.eventId
-    );
+    // Hardening: Confidence Threshold Check
+    const CONFIDENCE_THRESHOLD = 0.6;
+    let targetAgents = routing.target_agents || [];
+
+    if (confidence < CONFIDENCE_THRESHOLD) {
+      logger.info('LOW_CONFIDENCE_FALLBACK', { leadId, confidence });
+      logAgentStep(leadId, 'System', 'ROUTING', `Low confidence (${Math.round(confidence * 100)}%). Falling back to general follow-up.`, { primary_intent }, event.correlationId);
+      targetAgents = ['lead_followup_agent'];
+    }
+
+    if (targetAgents.length === 0) {
+      logAgentStep(leadId, 'System', 'ROUTING', 'Unknown intent. Routing to general follow-up.', { primary_intent }, event.correlationId);
+      targetAgents = ['lead_followup_agent'];
+    }
+
+    // Trigger each target agent
+    targetAgents.forEach((agentId: string) => {
+      logAgentStep(leadId, 'System', 'ROUTING', `Routing to ${agentId}`, { primary_intent, confidence }, event.correlationId);
+      enqueueAgentTask(agentId, { lead_id: leadId });
+    });
   });
 
   // 3. Availability Checked -> Re-trigger Scheduler for Step 2 (Send SMS)
   eventBus.subscribe(EVENTS.PROCESS.AVAILABILITY_CHECKED, (event: FluxEvent) => {
     const { leadId, slots } = event.payload;
-    
     logger.info('AVAILABILITY_READY', { leadId, slotCount: slots.length });
 
-    eventBus.emitFluxEvent(
-      EVENTS.PROCESS.AGENT_TRIGGERED,
-      { 
-        agentId: 'scheduler_agent', 
-        inputData: { lead_id: leadId, available_slots: slots } 
-      },
-      event.correlationId,
-      event.eventId
-    );
+    enqueueAgentTask('scheduler_agent', { lead_id: leadId, available_slots: slots });
   });
 
   // 4. Retry Logic (Simple MVP)
@@ -73,12 +69,6 @@ export function initializeOrchestrator() {
     }
 
     logger.info('RETRYING_JOB', { agentId, attempt: attempt + 1, correlationId: event.correlationId });
-    
-    eventBus.emitFluxEvent(
-      EVENTS.PROCESS.AGENT_TRIGGERED,
-      { agentId, inputData, attempt: attempt + 1 },
-      event.correlationId,
-      event.eventId
-    );
+    enqueueAgentTask(agentId, { ...inputData, attempt: attempt + 1 });
   });
 }
