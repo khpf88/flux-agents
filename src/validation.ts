@@ -21,8 +21,5 @@ export const LeadSchema = z.object({
 
 export const AgentDecisionSchema = z.object({
   tool: z.string(),
-  parameters: z.object({
-    phone: z.string().optional(),
-    message: z.string()
-  })
+  parameters: z.record(z.any())
 });
