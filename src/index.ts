@@ -35,13 +35,15 @@ coordinator.initialize();
 // Only the Coordinator's final response event can trigger an actual SMS send
 eventBus.subscribe(EVENTS.OUTPUT.FINAL_RESPONSE_READY, async (event: FluxEvent) => {
   const { phone, message, leadId } = event.payload;
-  logger.info('FINAL_OUTPUT_DELIVERY', { leadId, correlationId: event.correlationId });
+  logger.info('FINAL_OUTPUT_DELIVERY_STARTED', { leadId, correlationId: event.correlationId });
   
   try {
     await executeTool('send_sms', { phone, message }, leadId, event.correlationId, event.eventId);
+    logger.info('FINAL_OUTPUT_SMS_SENT', { leadId });
     
     // Update Lead Status upon successful final delivery
-    db.prepare("UPDATE leads SET status = 'Followed-up' WHERE id = ?").run(leadId);
+    const result = db.prepare("UPDATE leads SET status = 'Followed-up' WHERE id = ?").run(leadId);
+    logger.info('FINAL_OUTPUT_LEAD_STATUS_UPDATED', { leadId, changes: result.changes });
     
   } catch (error) {
     logger.error('FINAL_OUTPUT_FAILED', error, { leadId });
