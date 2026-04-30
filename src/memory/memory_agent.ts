@@ -6,6 +6,7 @@ import { eventBus, EVENTS } from '../events/event_bus.js';
 export interface ConversationState {
   lead_id: number;
   state: 'new_lead' | 'scheduling_requested' | 'awaiting_availability' | 'awaiting_time_selection' | 'booking_confirmed' | 'general_inquiry';
+  phase: 'collecting' | 'coordinating' | 'finalized';
   active_intent: string | null;
   last_agent: string | null;
   proposed_slots: string[];
@@ -36,6 +37,7 @@ export class MemoryAgent {
       const initialState: ConversationState = {
         lead_id: leadId,
         state: 'new_lead',
+        phase: 'collecting',
         active_intent: null,
         last_agent: null,
         proposed_slots: [],
@@ -120,6 +122,8 @@ export class MemoryAgent {
       newState.state = 'booking_confirmed';
       newState.booking_confirmed = true;
       newState.selected_slot = data.startTime;
+    } else if (transition === 'PHASE_FINALIZED') {
+      newState.phase = 'finalized';
     }
 
     if (oldStateName !== newState.state) {

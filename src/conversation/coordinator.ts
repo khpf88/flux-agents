@@ -116,6 +116,10 @@ class ConversationCoordinator {
       // 4. Emit Final Response
       if (finalMessage && finalPhone !== 'N/A') {
         this.finalizedLeads.add(correlationId); // Mark as finalized
+        
+        // Update phase to finalized
+        await MemoryAgent.handleSystemTransition(leadId, 'PHASE_FINALIZED', {}, correlationId);
+
         logAgentStep(leadId, 'Coordinator', 'FINAL_RESPONSE_COMPOSED', 'Unified response ready for delivery', { 
           message: finalMessage,
           state: state.state

@@ -22,6 +22,14 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
   const agentPath = path.join(process.cwd(), 'agents', `${agentTemplateId}.json`);
   const agentDef = JSON.parse(fs.readFileSync(agentPath, 'utf8'));
   const leadId = inputData.lead_id;
+  
+  // 0. Hard Execution Guard
+  const { state: conversationState } = await getContext({ leadId });
+  if (conversationState?.phase === 'finalized') {
+    logger.warn('AGENT_EXECUTION_SKIPPED', { agentId: agentTemplateId, leadId, reason: 'System finalized' });
+    return { status: 'skipped', reason: 'finalized' };
+  }
+
   const name = agentDef.identity.name;
   const startTime = Date.now();
 

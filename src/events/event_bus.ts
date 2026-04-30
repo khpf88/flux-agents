@@ -49,21 +49,22 @@ class GlobalEventBus extends EventEmitter {
    */
   subscribe(eventName: string, handler: (event: FluxEvent) => Promise<void> | void) {
     this.on(eventName, async (event: FluxEvent) => {
-      // 1. Check persistent DB for idempotency
-      const alreadyProcessed = db.prepare('SELECT 1 FROM processed_events WHERE event_id = ?').get(event.eventId);
-      
-      if (alreadyProcessed) {
-        console.warn(`[Idempotency] Skipping duplicate event (DB): ${event.eventId} (${event.event})`);
+      // 1. Atomically mark as processed in DB
+      try {
+        const stmt = db.prepare('INSERT OR IGNORE INTO processed_events (event_id, correlation_id) VALUES (?, ?)');
+        const result = stmt.run(event.eventId, event.correlationId);
+        
+        if (result.changes === 0) {
+          console.warn(`[Idempotency] Skipping duplicate event (DB): ${event.eventId} (${event.event})`);
+          return;
+        }
+      } catch (error) {
+        console.error(`[Bus] Error marking event ${event.event} as processed:`, error);
         return;
       }
 
       try {
         await handler(event);
-        
-        // 2. Mark as processed in DB
-        db.prepare('INSERT INTO processed_events (event_id, correlation_id) VALUES (?, ?)')
-          .run(event.eventId, event.correlationId);
-          
       } catch (error) {
         console.error(`[Bus] Error processing event ${event.event}:`, error);
       }
