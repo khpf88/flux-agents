@@ -10,6 +10,7 @@ export interface AgentContext {
   agent_memory?: any[];
   conversation_state?: ConversationState;
   memory_summary?: ConversationMemory;
+  agent_outputs?: any[];
   schedule?: {
     existing_bookings: any[];
     business_hours: any;

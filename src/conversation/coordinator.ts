@@ -78,74 +78,21 @@ class ConversationCoordinator {
 
     if (outputs.length === 0) return;
 
-    try {
-      logger.info('FINALIZING_COORDINATION', { correlationId, count: outputs.length });
-
-      // Load Memory State for prioritization
-      const { state } = await MemoryAgent.loadMemory(leadId);
-
-      // 3. Merging Logic
-      // Priority: scheduler_agent > lead_followup_agent UNLESS state says otherwise
-      const schedulerOutput = outputs.find(o => o.agentId === 'scheduler_agent');
-      const followupOutput = outputs.find(o => o.agentId === 'lead_followup_agent');
-
-      let finalMessage = '';
-      let finalPhone = '';
-
-      if (state.state === 'awaiting_time_selection' && schedulerOutput) {
-        // High priority for scheduler when waiting for time selection
-        finalMessage = schedulerOutput.proposal.content;
-        finalPhone = schedulerOutput.proposal.data.phone || 'N/A';
-      } else if (schedulerOutput && followupOutput) {
-        // Merge: Follow-up intro + Scheduler details
-        const intro = followupOutput.proposal.content.split('.')[0]; // Take first sentence of follow-up
-        finalMessage = `${intro}. ${schedulerOutput.proposal.content}`;
-        finalPhone = schedulerOutput.proposal.data.phone || followupOutput.proposal.data.phone || 'N/A';
-      } else if (schedulerOutput) {
-        finalMessage = schedulerOutput.proposal.content;
-        finalPhone = schedulerOutput.proposal.data.phone || 'N/A';
-      } else if (followupOutput) {
-        finalMessage = followupOutput.proposal.content;
-        finalPhone = followupOutput.proposal.data.phone || 'N/A';
-      } else {
-        // Fallback to first available
-        finalMessage = outputs[0].proposal.content;
-        finalPhone = outputs[0].proposal.data.phone || 'N/A';
-      }
-
-      // 4. Emit Final Response
-      if (finalMessage && finalPhone !== 'N/A') {
-        this.finalizedLeads.add(correlationId); // Mark as finalized
-        
-        // Update phase to finalized
-        await MemoryAgent.handleSystemTransition(leadId, 'PHASE_FINALIZED', {}, correlationId);
-
-        logAgentStep(leadId, 'Coordinator', 'FINAL_RESPONSE_COMPOSED', 'Unified response ready for delivery', { 
-          message: finalMessage,
-          state: state.state
-        }, correlationId);
-        
-        eventBus.emitFluxEvent(EVENTS.OUTPUT.FINAL_RESPONSE_READY, {
-          phone: finalPhone,
-          message: finalMessage,
-          leadId
-        }, correlationId, outputs[0].event.eventId);
-      } else {
-        logger.error('COORDINATION_MISSING_PHONE', { correlationId, finalPhone });
-      }
-    } catch (error) {
-      logger.error('COORDINATION_FAILED', error, { correlationId });
-      // FAIL-SAFE: Fallback to the first available output (usually follow-up)
-      const fallback = outputs.find(o => o.agentId === 'lead_followup_agent') || outputs[0];
-      if (fallback) {
-        this.finalizedLeads.add(correlationId);
-        eventBus.emitFluxEvent(EVENTS.OUTPUT.FINAL_RESPONSE_READY, {
-          phone: fallback.proposal.data.phone,
-          message: fallback.proposal.content,
-          leadId
-        }, correlationId, fallback.event.eventId);
-      }
-    }
+    // Delegate merging to Response Composer Agent
+    logger.info('DELEGATING_TO_COMPOSER', { correlationId });
+    
+    eventBus.emitFluxEvent(
+      EVENTS.PROCESS.COMPOSITION_REQUESTED,
+      {
+        lead_id: leadId,
+        agent_outputs: outputs.map(o => ({
+          agentId: o.agentId,
+          proposal: o.proposal
+        }))
+      },
+      correlationId,
+      outputs[0].event.eventId
+    );
   }
 }
 

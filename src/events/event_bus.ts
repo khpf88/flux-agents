@@ -91,6 +91,8 @@ export const EVENTS = {
     AVAILABILITY_CHECKED: 'process:availability_checked',
     BOOKING_CREATED: 'process:booking_created',
     AGENT_OUTPUT_READY: 'process:agent_output_ready',
+    COMPOSITION_REQUESTED: 'process:composition_requested',
+    FINAL_RESPONSE_COMPOSED: 'process:final_response_composed',
   },
   // Output Events
   OUTPUT: {

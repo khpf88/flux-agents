@@ -101,6 +101,21 @@ export function initializeOrchestrator() {
     await MemoryAgent.handleSystemTransition(leadId, 'BOOKING_CREATED', { startTime }, event.correlationId);
   });
 
+  // 3.6 Composition Requested -> Trigger Response Composer Agent
+  eventBus.subscribe(EVENTS.PROCESS.COMPOSITION_REQUESTED, async (event: FluxEvent) => {
+    const { lead_id, agent_outputs } = event.payload;
+    
+    eventBus.emitFluxEvent(
+      EVENTS.PROCESS.AGENT_TRIGGERED,
+      { 
+        agentId: 'response_composer_agent', 
+        inputData: { lead_id, agent_outputs } 
+      },
+      event.correlationId,
+      event.eventId
+    );
+  });
+
   // 4. Final Response Ready -> Record Assistant Turn & Summarize
   eventBus.subscribe(EVENTS.OUTPUT.FINAL_RESPONSE_READY, async (event: FluxEvent) => {
     const { leadId, message } = event.payload;
