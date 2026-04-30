@@ -13,13 +13,13 @@ export interface FluxEvent<T = any> extends EventMetadata {
   payload: T;
 }
 
+import db from '../db.js';
+
 /**
  * SINGLE Unified Event Bus
  * All modules communicate ONLY via this bus.
  */
 class GlobalEventBus extends EventEmitter {
-  private processedEvents = new Set<string>();
-
   /**
    * Enhanced emit with metadata tracking
    */
@@ -49,20 +49,21 @@ class GlobalEventBus extends EventEmitter {
    */
   subscribe(eventName: string, handler: (event: FluxEvent) => Promise<void> | void) {
     this.on(eventName, async (event: FluxEvent) => {
-      if (this.processedEvents.has(event.eventId)) {
-        console.warn(`[Idempotency] Skipping duplicate event: ${event.eventId} (${event.event})`);
+      // 1. Check persistent DB for idempotency
+      const alreadyProcessed = db.prepare('SELECT 1 FROM processed_events WHERE event_id = ?').get(event.eventId);
+      
+      if (alreadyProcessed) {
+        console.warn(`[Idempotency] Skipping duplicate event (DB): ${event.eventId} (${event.event})`);
         return;
       }
 
       try {
         await handler(event);
-        this.processedEvents.add(event.eventId);
         
-        // Optional: Cleanup old event IDs (TTL)
-        if (this.processedEvents.size > 1000) {
-          const firstItem = this.processedEvents.values().next().value;
-          if (firstItem) this.processedEvents.delete(firstItem);
-        }
+        // 2. Mark as processed in DB
+        db.prepare('INSERT INTO processed_events (event_id, correlation_id) VALUES (?, ?)')
+          .run(event.eventId, event.correlationId);
+          
       } catch (error) {
         console.error(`[Bus] Error processing event ${event.event}:`, error);
       }
@@ -84,6 +85,7 @@ export const EVENTS = {
   // Processing Events
   PROCESS: {
     AGENT_TRIGGERED: 'process:agent_triggered',
+    INTENT_CLASSIFIED: 'process:intent_classified',
     DECISION_MADE: 'process:decision_made',
     AVAILABILITY_CHECKED: 'process:availability_checked',
     BOOKING_CREATED: 'process:booking_created',

@@ -13,13 +13,13 @@
     "schedule",
     "agent_memory"
   ],
-  "reasoning": "Analyze the lead's message. If they want to book, check availability. If slots are found, suggest them. If they provided a specific slot that matches availability, create the booking. If no scheduling intent, explain that you are a booking assistant.",
+  "reasoning": "1. Analyze the lead's message for a date/time. 2. If 'schedule' is in context but 'available_slots' is empty, call 'check_availability'. 3. If 'available_slots' are present, call 'send_sms' to suggest 2-3 specific slots from that list and ask for confirmation. 4. Format the SMS clearly and politely. If the user mentioned a day (like Friday), prioritize that.",
   "tools": [
     {
       "name": "check_availability",
-      "description": "Checks available time slots for appointments.",
+      "description": "Checks available time slots. If the user mentions a specific day, pass that day. Format: YYYY-MM-DD",
       "parameters": {
-        "days_ahead": "number"
+        "date": "string"
       }
     },
     {

@@ -57,7 +57,7 @@ app.post('/api/leads', (req, res) => {
     const newLead = { id: info.lastInsertRowid, name, email, phone, message };
     
     // Write to DB Logs for Dashboard visibility
-    logAgentStep(newLead.id as number, 'System', 'LEAD_STORED', `New lead captured: ${email}`, { message });
+    logAgentStep(newLead.id as number, 'System', 'LEAD_STORED', `New lead captured: ${email}`, { message }, `lead_${newLead.id}`);
     
     logger.info('LEAD_STORED', { lead_id: newLead.id, email });
     

@@ -20,6 +20,7 @@ db.exec(`
     step TEXT NOT NULL,
     message TEXT,
     details TEXT,
+    correlation_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(lead_id) REFERENCES leads(id)
   );
@@ -48,6 +49,12 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(lead_id) REFERENCES leads(id)
   );
+
+  CREATE TABLE IF NOT EXISTS processed_events (
+    event_id TEXT PRIMARY KEY,
+    correlation_id TEXT,
+    processed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Seed config
@@ -56,6 +63,13 @@ if (count.count === 0) {
   const stmt = db.prepare('INSERT INTO business_config (key, value) VALUES (?, ?)');
   stmt.run('business_name', 'Flux Solutions');
   stmt.run('owner_name', 'Kian');
+  stmt.run('timezone', 'America/New_York'); // Default timezone
+} else {
+  // Ensure timezone exists even if seeded before
+  const tz = db.prepare('SELECT value FROM business_config WHERE key = ?').get('timezone');
+  if (!tz) {
+    db.prepare('INSERT INTO business_config (key, value) VALUES (?, ?)').run('timezone', 'America/New_York');
+  }
 }
 
 export default db;

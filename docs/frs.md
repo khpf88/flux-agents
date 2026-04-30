@@ -9,12 +9,17 @@ The system is built on a decoupled, modular architecture where components commun
 ## 3. Key Features
 - **Event-Driven Workflow**: Uses a single unified event bus with `input`, `process`, `output`, and `system` event categories.
 - **Traceable Execution**: Every action is linked via `eventId`, `correlationId`, and `causationId`.
-- **Scheduler Agent (NEW)**: Detects booking intent, checks availability, and creates formal bookings.
-- **Idempotency**: Prevents duplicate processing of events to ensure system reliability.
+- **Intent Classification**: Uses LLM to classify incoming messages into 'scheduling' or 'general' intents for accurate routing.
+- **Scheduler Agent (Hardened)**: 
+  - Parses natural language dates (e.g., "this Friday") into structured ISO dates.
+  - Checks availability and suggests slots via SMS.
+  - Prevents double-booking at the database level.
+  - Normalizes all user-facing output to the business timezone.
+- **Persistent Idempotency**: Uses a database-backed event log to prevent duplicate processing of the same event.
 - **Dual-Memory Model**:
   - **Context Memory**: Stores business state, lead data, and bookings.
   - **Agent Memory**: Stores execution outcomes and patterns for experiential learning.
-- **Interactive Dashboard (v1.5)**: Real-time event stream, booking status tracking, and AI reasoning transparency.
+- **Interactive Dashboard (v1.5)**: Real-time event stream with correlation tracking and specialized booking rendering.
 
 ## 4. Technical Requirements
 - Node.js / TypeScript (ESM)

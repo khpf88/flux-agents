@@ -28,20 +28,31 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
     // 1. Context Assembly (Synchronous Service Call)
     // NO EVENT EMITTED HERE
     const context = await getContext({ leadId, agentTemplateId });
-    
     // 2. Reasoning Prompt
     const prompt = `
       You are an AI Agent: ${JSON.stringify(agentDef.identity)}
+
+      SYSTEM TIME (UTC): ${new Date().toISOString()}
+      BUSINESS TIMEZONE: ${context.business_profile.timezone || 'UTC'}
+
+      INPUT DATA: ${JSON.stringify(inputData)}
+
       CONTEXT:
       Business: ${JSON.stringify(context.business_profile)}
       Customer: ${JSON.stringify(context.customer_profile)}
       Recent Memory: ${JSON.stringify(context.agent_memory)}
+      Schedule Info: ${JSON.stringify(context.schedule)}
+
       TOOLS: ${JSON.stringify(agentDef.tools)}
+
       TASK: ${agentDef.reasoning}
-      OUTPUT: JSON ONLY matching { "tool": "string", "parameters": { ... } }
+
+      INSTRUCTIONS:
+      - If suggesting slots, convert UTC slots to the Business Timezone for the user.
+      - Output ONLY raw JSON matching { "tool": "string", "parameters": { ... } }
     `;
 
-    logAgentStep(leadId, name, 'REASONING', 'Analyzing context and memory...');
+    logAgentStep(leadId, name, 'REASONING', 'Analyzing context and memory...', undefined, correlationId);
     const response = await generateContent(prompt);
     
     // 3. Decision & Validation
@@ -56,7 +67,7 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
     
     // Emit Decision Made
     eventBus.emitFluxEvent(EVENTS.PROCESS.DECISION_MADE, { decision }, correlationId, causationId);
-    logAgentStep(leadId, name, 'DECISION', `Agent selected tool: ${decision.tool}`, decision.parameters);
+    logAgentStep(leadId, name, 'DECISION', `Agent selected tool: ${decision.tool}`, decision.parameters, correlationId);
 
     // 4. Tool Execution with internal failure handling
     let toolResult;
@@ -92,7 +103,7 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
     logAgentStep(leadId, name, logStep, 'Action completed', { 
       duration: `${Date.now() - startTime}ms`,
       result: toolResult 
-    });
+    }, correlationId);
 
     // Update Lead Status
     try {
@@ -104,7 +115,7 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
     return toolResult;
   } catch (error: any) {
     eventBus.emitFluxEvent(EVENTS.SYSTEM.AGENT_FAILED, { error: error.message }, correlationId, causationId);
-    logAgentStep(leadId, name, 'ERROR', 'Execution failed', { error: error.message });
+    logAgentStep(leadId, name, 'ERROR', 'Execution failed', { error: error.message }, correlationId);
     throw error;
   }
 }

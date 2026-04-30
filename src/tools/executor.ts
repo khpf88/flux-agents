@@ -23,25 +23,33 @@ const ToolRegistry: Record<string, Function> = {
   },
 
   check_availability: async (parameters: any, leadId: number, correlationId: string, causationId: string) => {
-    // Mock availability logic: Tomorrow at 10am, 2pm, 4pm
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const dateStr = tomorrow.toISOString().split('T')[0];
+    const targetDate = parameters.date; // Expecting YYYY-MM-DD
+    const dateStr = targetDate || new Date().toISOString().split('T')[0];
 
-    const slots = [
-      `${dateStr}T10:00:00Z`,
-      `${dateStr}T14:00:00Z`,
-      `${dateStr}T16:00:00Z`
+    // Mock Business Hours for the specific date: 10am, 2pm, 4pm
+    const potentialSlots = [
+      `${dateStr}T10:00:00.000Z`,
+      `${dateStr}T14:00:00.000Z`,
+      `${dateStr}T16:00:00.000Z`
     ];
+
+    // Filter out already booked slots
+    const existing = db.prepare(`
+      SELECT start_time FROM bookings 
+      WHERE date(start_time) = date(?) AND status != 'cancelled'
+    `).all(dateStr) as { start_time: string }[];
+
+    const bookedSlots = existing.map(b => new Date(b.start_time).toISOString());
+    const availableSlots = potentialSlots.filter(s => !bookedSlots.includes(new Date(s).toISOString()));
 
     const result = {
       success: true,
       type: 'availability',
-      slots,
-      raw: `Found ${slots.length} available slots for ${dateStr}`
+      slots: availableSlots,
+      raw: `Found ${availableSlots.length} available slots for ${dateStr}`
     };
 
-    eventBus.emitFluxEvent(EVENTS.PROCESS.AVAILABILITY_CHECKED, { leadId, slots }, correlationId, causationId);
+    eventBus.emitFluxEvent(EVENTS.PROCESS.AVAILABILITY_CHECKED, { leadId, slots: availableSlots }, correlationId, causationId);
     return result;
   },
 
@@ -49,6 +57,20 @@ const ToolRegistry: Record<string, Function> = {
     const { startTime, durationMinutes = 30 } = parameters;
     const start = new Date(startTime);
     const end = new Date(start.getTime() + durationMinutes * 60000);
+
+    // Hardening: Double-booking protection
+    const conflict = db.prepare(`
+      SELECT id FROM bookings 
+      WHERE status != 'cancelled' 
+      AND (
+        (start_time <= ? AND end_time > ?) OR
+        (start_time < ? AND end_time >= ?)
+      )
+    `).get(start.toISOString(), start.toISOString(), end.toISOString(), end.toISOString());
+
+    if (conflict) {
+      throw new Error(`DOUBLE_BOOKING_PREVENTED: Slot ${startTime} is already taken.`);
+    }
 
     const info = db.prepare(`
       INSERT INTO bookings (lead_id, start_time, end_time, status)
