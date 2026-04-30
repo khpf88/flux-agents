@@ -28,8 +28,11 @@
 - Implemented Conversation Memory Agent service (`src/memory/memory_agent.ts`).
 - Added persistence for state (`conversation_memory`) and history (`conversation_turns`) in SQLite.
 - Integrated Memory Agent into the `Context Bus` (data injection) and `Orchestrator` (event flow).
-- Updated `Conversation Coordinator` to prioritize agent responses based on current `ConversationState`.
-- Hardened state transitions and idempotency.
+- **Hardened Architecture:**
+    - Introduced `phase` management (`collecting` -> `coordinating` -> `finalized`) to conversation states.
+    - Implemented hard execution guards in `Agent Engine` to prevent post-finalization agent activity.
+    - Upgraded `EventBus` to use atomic `INSERT OR IGNORE` for robust event idempotency.
+    - Added phase-based locking via Coordinator to ensure reliable, single-event finalization.
 
 ## Current Gap
 - None (Memory implementation completed).
