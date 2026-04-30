@@ -11,7 +11,10 @@
 ## [2026-04-29] Intent Engine & Decoupling (v1.6)
 - Implemented central Intent Classifier Agent for LLM-driven routing.
 - Fully decoupled Orchestrator from Worker using purely asynchronous event signals.
-- Added Agent ID Normalization to handle diverse LLM naming conventions.
-- Stabilized Zod environment by downgrading to stable v3.24.1.
-- Implemented persistent database-backed idempotency.
-- Enhanced Dashboard with Intent Analysis and Confidence metrics.
+
+## [2026-04-30] Conversation Coordinator (v1.7)
+- Implemented Conversation Coordinator to aggregate outputs from multiple agents.
+- Refactored Agent Engine to use the "Proposal" pattern for output tools (SMS).
+- Added intelligent message merging (Scheduler slots + Follow-up personalization).
+- Enforced a single final response per lead interaction using a 2s aggregation window.
+- Centralized lead status updates in the final delivery step.
