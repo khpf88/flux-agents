@@ -12,6 +12,7 @@ import { logAgentStep } from '../agent_engine/logger.js';
  * - Emit Processing Events (with correlation and causation)
  */
 export function initializeOrchestrator() {
+  
   // 1. Lead Created -> Classify Intent
   eventBus.subscribe(EVENTS.INPUT.LEAD_CREATED, async (event: FluxEvent) => {
     const lead = event.payload;
@@ -25,7 +26,6 @@ export function initializeOrchestrator() {
 
     eventBus.emitFluxEvent(
       EVENTS.PROCESS.INTENT_CLASSIFIED,
-  ...
       { intent, confidence, lead_id: lead.id },
       event.correlationId,
       event.eventId
