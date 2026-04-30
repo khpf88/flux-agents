@@ -28,7 +28,8 @@
 - [x] Real-time Status Updates (Followed-up badge)
 - [x] Dynamic Performance Metrics (Avg Speed, ⚡ Duration)
 
-## Phase 5: Production & Scale
+## Phase 5: Advanced Features
+- [x] Scheduler Agent (Intent detection + Bookings)
 - [x] Merge to Main
 - [x] Documentation Update
 - [ ] Redis + BullMQ (For multi-node scaling)

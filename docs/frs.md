@@ -9,12 +9,12 @@ The system is built on a decoupled, modular architecture where components commun
 ## 3. Key Features
 - **Event-Driven Workflow**: Uses a single unified event bus with `input`, `process`, `output`, and `system` event categories.
 - **Traceable Execution**: Every action is linked via `eventId`, `correlationId`, and `causationId`.
+- **Scheduler Agent (NEW)**: Detects booking intent, checks availability, and creates formal bookings.
 - **Idempotency**: Prevents duplicate processing of events to ensure system reliability.
 - **Dual-Memory Model**:
-  - **Context Memory**: Stores business state and lead data.
+  - **Context Memory**: Stores business state, lead data, and bookings.
   - **Agent Memory**: Stores execution outcomes and patterns for experiential learning.
-- **Validated Capture**: Strict Zod-based input validation with international phone support.
-- **Interactive Dashboard (v1.4)**: Real-time event stream, lead status tracking, and AI reasoning transparency.
+- **Interactive Dashboard (v1.5)**: Real-time event stream, booking status tracking, and AI reasoning transparency.
 
 ## 4. Technical Requirements
 - Node.js / TypeScript (ESM)

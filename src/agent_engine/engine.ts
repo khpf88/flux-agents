@@ -47,7 +47,12 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
     // 3. Decision & Validation
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('LLM_MALFORMED_JSON');
-    const decision = AgentDecisionSchema.parse(JSON.parse(jsonMatch[0]));
+    
+    const parseResult = AgentDecisionSchema.safeParse(JSON.parse(jsonMatch[0]));
+    if (!parseResult.success) {
+      throw new Error(`AGENT_DECISION_VALIDATION_FAILED: ${JSON.stringify(parseResult.error.issues)}`);
+    }
+    const decision = parseResult.data;
     
     // Emit Decision Made
     eventBus.emitFluxEvent(EVENTS.PROCESS.DECISION_MADE, { decision }, correlationId, causationId);

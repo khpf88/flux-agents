@@ -13,3 +13,11 @@
 - Implemented retry logic for tool/agent failures.
 - Polished Dashboard with timeline views, SMS previews, and dynamic duration stats.
 - Automated status updates from "New" to "Followed-up".
+
+## [2026-04-29] Scheduler Agent (v1.5)
+- Implemented Scheduler Agent for automated booking.
+- Added intent detection to Orchestrator (Lead vs. Booking).
+- Created `check_availability` and `create_booking` modular tools.
+- Updated Context Bus to supply real-time availability data.
+- Added `bookings` table to database.
+- Enhanced Dashboard to visualize scheduling events.
