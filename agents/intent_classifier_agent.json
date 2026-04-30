@@ -19,6 +19,7 @@
     "Categorize as 'urgent_support' if they express frustration or immediate need.",
     "Extracted entities should include any dates, service types, or budget mentions.",
     "Confidence must be between 0 and 1.",
+    "Routing target_agents should be an array. You can suggest multiple agents if the user needs both a specific action (e.g. scheduler_agent) and a general response (e.g. lead_followup_agent).",
     "Routing target_agents must be one of: ['scheduler_agent', 'lead_followup_agent']."
   ],
   "output_schema": {

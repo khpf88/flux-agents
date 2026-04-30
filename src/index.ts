@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import db from './db.js';
-import { eventBus, EVENTS } from './events/event_bus.js';
+import { eventBus, EVENTS, FluxEvent } from './events/event_bus.js';
 import { initializeOrchestrator } from './events/orchestrator.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -24,8 +24,29 @@ app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 // Initialize Event System
 import { initializeWorker } from './events/worker.js';
+import { coordinator } from './conversation/coordinator.js';
+import { executeTool } from './tools/executor.js';
+
 initializeOrchestrator();
 initializeWorker();
+coordinator.initialize();
+
+// Final Output Listener
+// Only the Coordinator's final response event can trigger an actual SMS send
+eventBus.subscribe(EVENTS.OUTPUT.FINAL_RESPONSE_READY, async (event: FluxEvent) => {
+  const { phone, message, leadId } = event.payload;
+  logger.info('FINAL_OUTPUT_DELIVERY', { leadId, correlationId: event.correlationId });
+  
+  try {
+    await executeTool('send_sms', { phone, message }, leadId, event.correlationId, event.eventId);
+    
+    // Update Lead Status upon successful final delivery
+    db.prepare("UPDATE leads SET status = 'Followed-up' WHERE id = ?").run(leadId);
+    
+  } catch (error) {
+    logger.error('FINAL_OUTPUT_FAILED', error, { leadId });
+  }
+});
 
 // API Routes
 import { LeadSchema } from './validation.js';

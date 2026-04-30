@@ -89,12 +89,14 @@ export const EVENTS = {
     DECISION_MADE: 'process:decision_made',
     AVAILABILITY_CHECKED: 'process:availability_checked',
     BOOKING_CREATED: 'process:booking_created',
+    AGENT_OUTPUT_READY: 'process:agent_output_ready',
   },
   // Output Events
   OUTPUT: {
     SMS_SENT: 'output:sms_sent',
     BOOKING_CONFIRMED: 'output:booking_confirmed',
     FOLLOWUP_COMPLETED: 'output:followup_completed',
+    FINAL_RESPONSE_READY: 'output:final_response_ready',
   },
   // System Events
   SYSTEM: {

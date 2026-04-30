@@ -91,8 +91,49 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
       eventBus.emitFluxEvent(EVENTS.PROCESS.DECISION_MADE, { decision }, correlationId, causationId);
       logAgentStep(leadId, name, 'DECISION', `Agent selected tool: ${decision.tool}`, decision.parameters, correlationId);
 
-      // 4. Tool Execution
-      const toolResult = await executeTool(decision.tool, decision.parameters, leadId, correlationId, causationId);
+      // 4. Tool Execution / Output Proposal
+      if (decision.tool === 'send_sms') {
+        // INTERCEPT: Propose action to Coordinator instead of executing
+        eventBus.emitFluxEvent(EVENTS.PROCESS.AGENT_OUTPUT_READY, {
+          agentId: agentTemplateId,
+          proposed_action: {
+            type: 'sms',
+            priority: agentTemplateId === 'scheduler_agent' ? 'high' : 'medium',
+            content: decision.parameters.message,
+            data: decision.parameters
+          }
+        }, correlationId, causationId);
+        
+        logAgentStep(leadId, name, 'OUTPUT_PROPOSED', 'Proposed SMS response to Coordinator', { message: decision.parameters.message }, correlationId);
+
+        // Record to Agent Memory even for proposals
+        db.prepare(`
+          INSERT INTO agent_memories (agent_template_id, memory_type, content)
+          VALUES (?, ?, ?)
+        `).run(agentTemplateId, 'EXECUTION_OUTCOME', JSON.stringify({
+          leadId,
+          tool: decision.tool,
+          type: 'proposal',
+          duration: Date.now() - startTime,
+          status: 'success'
+        }));
+
+        return { status: 'proposed', type: 'sms' };
+      }
+
+      // Standard internal Tool Execution (e.g. check_availability, create_booking)
+      let toolResult;
+      try {
+        toolResult = await executeTool(decision.tool, decision.parameters, leadId, correlationId, causationId);
+      } catch (toolError: any) {
+        eventBus.emitFluxEvent(
+          EVENTS.SYSTEM.TOOL_FAILED, 
+          { tool: decision.tool, error: toolError.message }, 
+          correlationId, 
+          causationId
+        );
+        throw toolError;
+      }
       
       // 5. Agent Memory Write
       db.prepare(`
@@ -115,14 +156,8 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
         result: toolResult 
       }, correlationId);
 
-      // Update Lead Status
-      try {
-        db.prepare("UPDATE leads SET status = 'Followed-up' WHERE id = ?").run(leadId);
-      } catch (dbErr) {
-        logger.error('STATUS_UPDATE_FAILED', dbErr, { leadId });
-      }
-
       return toolResult;
+
     }
   } catch (error: any) {
     eventBus.emitFluxEvent(EVENTS.SYSTEM.AGENT_FAILED, { error: error.message }, correlationId, causationId);
