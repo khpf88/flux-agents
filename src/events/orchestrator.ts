@@ -1,6 +1,7 @@
 import { eventBus, EVENTS, FluxEvent } from './event_bus.js';
 import { logger } from '../logger.js';
 import { logAgentStep } from '../agent_engine/logger.js';
+import { MemoryAgent } from '../memory/memory_agent.js';
 
 /**
  * Orchestrator
@@ -17,6 +18,9 @@ export function initializeOrchestrator() {
     const lead = event.payload;
     logger.info('ORCHESTRATOR_START', { lead_id: lead.id, correlationId: event.correlationId });
 
+    // Record the initial message as a turn
+    await MemoryAgent.recordTurn(lead.id, 'user', lead.message, event.correlationId);
+
     // Step 1: Trigger the central Classifier Agent via Event Bus
     eventBus.emitFluxEvent(
       EVENTS.PROCESS.AGENT_TRIGGERED,
@@ -26,16 +30,24 @@ export function initializeOrchestrator() {
     );
   });
 
-  // 2. Intent Classified -> Route to Downstream Agent(s)
-  eventBus.subscribe(EVENTS.PROCESS.INTENT_CLASSIFIED, (event: FluxEvent) => {
+  // 2. Intent Classified -> Update Memory & Route to Downstream Agent(s)
+  eventBus.subscribe(EVENTS.PROCESS.INTENT_CLASSIFIED, async (event: FluxEvent) => {
     const { intent, leadId } = event.payload;
     const { primary_intent, confidence, routing } = intent;
     
     logger.info('ROUTING_DECISION', { leadId, primary_intent, confidence });
 
+    // Step 2: Update Conversation Memory State
+    const newState = await MemoryAgent.updateState(leadId, intent, event.correlationId);
+
     // Hardening: Confidence Threshold Check
     const CONFIDENCE_THRESHOLD = 0.6;
     let targetAgents = routing.target_agents || [];
+
+    // If state is already in a specific flow, we might override target agents
+    if (newState.state === 'awaiting_time_selection' && primary_intent === 'acknowledgement') {
+      targetAgents = ['scheduler_agent'];
+    }
 
     if (confidence < CONFIDENCE_THRESHOLD) {
       logger.info('LOW_CONFIDENCE_FALLBACK', { leadId, confidence });
@@ -65,9 +77,12 @@ export function initializeOrchestrator() {
   });
 
   // 3. Availability Checked -> Re-trigger Scheduler for Step 2 (Send SMS)
-  eventBus.subscribe(EVENTS.PROCESS.AVAILABILITY_CHECKED, (event: FluxEvent) => {
+  eventBus.subscribe(EVENTS.PROCESS.AVAILABILITY_CHECKED, async (event: FluxEvent) => {
     const { leadId, slots } = event.payload;
     logger.info('AVAILABILITY_READY', { leadId, slotCount: slots.length });
+
+    // Update state to reflect availability provided
+    await MemoryAgent.handleSystemTransition(leadId, 'AVAILABILITY_PROVIDED', { slots }, event.correlationId);
 
     eventBus.emitFluxEvent(
       EVENTS.PROCESS.AGENT_TRIGGERED,
@@ -78,6 +93,27 @@ export function initializeOrchestrator() {
       event.correlationId,
       event.eventId
     );
+  });
+
+  // 3.5 Booking Created -> Update State
+  eventBus.subscribe(EVENTS.PROCESS.BOOKING_CREATED, async (event: FluxEvent) => {
+    const { leadId, startTime } = event.payload;
+    await MemoryAgent.handleSystemTransition(leadId, 'BOOKING_CREATED', { startTime }, event.correlationId);
+  });
+
+  // 4. Final Response Ready -> Record Assistant Turn & Summarize
+  eventBus.subscribe(EVENTS.OUTPUT.FINAL_RESPONSE_READY, async (event: FluxEvent) => {
+    const { leadId, message } = event.payload;
+    
+    // Record assistant's response
+    await MemoryAgent.recordTurn(leadId, 'assistant', message, event.correlationId);
+    
+    // Trigger Summarization (Async)
+    MemoryAgent.summarizeConversation(leadId).then(memory => {
+      MemoryAgent.loadMemory(leadId).then(({ state }) => {
+        MemoryAgent.persistMemory(leadId, state, memory);
+      });
+    });
   });
 
   // 4. Retry Logic (Simple MVP)

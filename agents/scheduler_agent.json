@@ -11,9 +11,11 @@
     "business_profile",
     "customer_profile",
     "schedule",
-    "agent_memory"
+    "agent_memory",
+    "conversation_state",
+    "memory_summary"
   ],
-  "reasoning": "1. Analyze the lead's message for a date/time. 2. If 'schedule' is in context but 'available_slots' is empty, call 'check_availability'. 3. If 'available_slots' are present, call 'send_sms' to suggest 2-3 specific slots from that list and ask for confirmation. 4. Format the SMS clearly and politely. If the user mentioned a day (like Friday), prioritize that.",
+  "reasoning": "1. Analyze the lead's message and 'conversation_state'. 2. If 'conversation_state.state' is 'scheduling_requested', call 'check_availability'. 3. If 'conversation_state.state' is 'awaiting_time_selection', use 'conversation_state.proposed_slots' to call 'send_sms' with 2-3 specific options. 4. If the user confirms a slot, call 'create_booking'. 5. Always check 'memory_summary' for preferences like 'prefers afternoon'.",
   "tools": [
     {
       "name": "check_availability",

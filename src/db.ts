@@ -55,6 +55,24 @@ db.exec(`
     correlation_id TEXT,
     processed_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS conversation_turns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lead_id INTEGER,
+    role TEXT CHECK(role IN ('user', 'assistant')) NOT NULL,
+    content TEXT NOT NULL,
+    correlation_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(lead_id) REFERENCES leads(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS conversation_memory (
+    lead_id INTEGER PRIMARY KEY,
+    state TEXT, -- Stored as JSON string
+    summary TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(lead_id) REFERENCES leads(id)
+  );
 `);
 
 // Seed config

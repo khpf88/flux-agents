@@ -9,9 +9,11 @@
   },
   "context_injection": [
     "business_profile",
-    "customer_profile"
+    "customer_profile",
+    "conversation_state",
+    "memory_summary"
   ],
-  "reasoning": "Acknowledge the specific message the user sent and offer a clear next step (e.g. scheduling a call).",
+  "reasoning": "Acknowledge the specific message and the current conversation state. If the user is already in a scheduling flow, be supportive of that flow rather than starting a new one. Use the summary to personalize the greeting.",
   "tools": [
     {
       "name": "send_sms",

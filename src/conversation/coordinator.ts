@@ -1,6 +1,7 @@
 import { eventBus, EVENTS, FluxEvent } from '../events/event_bus.js';
 import { logger } from '../logger.js';
 import { logAgentStep } from '../agent_engine/logger.js';
+import { MemoryAgent } from '../memory/memory_agent.js';
 
 interface ProposedAction {
   type: 'sms';
@@ -43,7 +44,8 @@ class ConversationCoordinator {
       logger.info('COORDINATION_SKIPPED', { correlationId, reason: 'Already finalized' });
       return;
     }
-    const leadId = parseInt(correlationId.replace('lead_', ''));
+    const leadIdStr = correlationId.replace('lead_', '');
+    const leadId = parseInt(leadIdStr);
 
     logger.info('COORDINATION_RECEIVED', { agentId, correlationId });
     
@@ -67,7 +69,7 @@ class ConversationCoordinator {
     this.timeouts.set(correlationId, timeout);
   }
 
-  private finalizeCoordination(correlationId: string) {
+  private async finalizeCoordination(correlationId: string) {
     const outputs = this.buffer.get(correlationId) || [];
     const leadId = parseInt(correlationId.replace('lead_', ''));
     
@@ -79,41 +81,53 @@ class ConversationCoordinator {
     try {
       logger.info('FINALIZING_COORDINATION', { correlationId, count: outputs.length });
 
-      // 3. Merging Logic (MVP)
-      // Priority: scheduler_agent > lead_followup_agent
+      // Load Memory State for prioritization
+      const { state } = await MemoryAgent.loadMemory(leadId);
+
+      // 3. Merging Logic
+      // Priority: scheduler_agent > lead_followup_agent UNLESS state says otherwise
       const schedulerOutput = outputs.find(o => o.agentId === 'scheduler_agent');
       const followupOutput = outputs.find(o => o.agentId === 'lead_followup_agent');
 
       let finalMessage = '';
       let finalPhone = '';
 
-      if (schedulerOutput && followupOutput) {
+      if (state.state === 'awaiting_time_selection' && schedulerOutput) {
+        // High priority for scheduler when waiting for time selection
+        finalMessage = schedulerOutput.proposal.content;
+        finalPhone = schedulerOutput.proposal.data.phone || 'N/A';
+      } else if (schedulerOutput && followupOutput) {
         // Merge: Follow-up intro + Scheduler details
         const intro = followupOutput.proposal.content.split('.')[0]; // Take first sentence of follow-up
         finalMessage = `${intro}. ${schedulerOutput.proposal.content}`;
-        finalPhone = schedulerOutput.proposal.data.phone || followupOutput.proposal.data.phone;
+        finalPhone = schedulerOutput.proposal.data.phone || followupOutput.proposal.data.phone || 'N/A';
       } else if (schedulerOutput) {
         finalMessage = schedulerOutput.proposal.content;
-        finalPhone = schedulerOutput.proposal.data.phone;
+        finalPhone = schedulerOutput.proposal.data.phone || 'N/A';
       } else if (followupOutput) {
         finalMessage = followupOutput.proposal.content;
-        finalPhone = followupOutput.proposal.data.phone;
+        finalPhone = followupOutput.proposal.data.phone || 'N/A';
       } else {
         // Fallback to first available
         finalMessage = outputs[0].proposal.content;
-        finalPhone = outputs[0].proposal.data.phone;
+        finalPhone = outputs[0].proposal.data.phone || 'N/A';
       }
 
       // 4. Emit Final Response
-      if (finalMessage && finalPhone) {
+      if (finalMessage && finalPhone !== 'N/A') {
         this.finalizedLeads.add(correlationId); // Mark as finalized
-        logAgentStep(leadId, 'Coordinator', 'FINAL_RESPONSE_COMPOSED', 'Unified response ready for delivery', { message: finalMessage }, correlationId);
+        logAgentStep(leadId, 'Coordinator', 'FINAL_RESPONSE_COMPOSED', 'Unified response ready for delivery', { 
+          message: finalMessage,
+          state: state.state
+        }, correlationId);
         
         eventBus.emitFluxEvent(EVENTS.OUTPUT.FINAL_RESPONSE_READY, {
           phone: finalPhone,
           message: finalMessage,
           leadId
         }, correlationId, outputs[0].event.eventId);
+      } else {
+        logger.error('COORDINATION_MISSING_PHONE', { correlationId, finalPhone });
       }
     } catch (error) {
       logger.error('COORDINATION_FAILED', error, { correlationId });

@@ -1,5 +1,6 @@
 import db from '../db.js';
 import { logger } from '../logger.js';
+import { MemoryAgent, ConversationState, ConversationMemory } from '../memory/memory_agent.js';
 
 export interface AgentContext {
   business_profile: Record<string, string>;
@@ -7,6 +8,8 @@ export interface AgentContext {
   conversation_history: any[];
   system_state: Record<string, any>;
   agent_memory?: any[];
+  conversation_state?: ConversationState;
+  memory_summary?: ConversationMemory;
   schedule?: {
     existing_bookings: any[];
     business_hours: any;
@@ -40,12 +43,25 @@ export async function getContext(params: { leadId?: number, agentTemplateId?: st
     logger.error('CONTEXT_BUS_ERROR', error, { step: 'business_profile' });
   }
 
-  // 2. Fetch Customer Profile
+  // 2. Fetch Customer Profile & Conversation Memory
   if (params.leadId) {
     try {
       context.customer_profile = db.prepare('SELECT * FROM leads WHERE id = ?').get(params.leadId) as any;
+      
+      // Memory Agent Integration
+      const { state, memory } = await MemoryAgent.loadMemory(params.leadId);
+      context.conversation_state = state;
+      context.memory_summary = memory;
+
+      // Raw history (turns)
+      context.conversation_history = db.prepare(`
+        SELECT role, content FROM conversation_turns 
+        WHERE lead_id = ? 
+        ORDER BY created_at DESC LIMIT 10
+      `).all(params.leadId);
+
     } catch (error) {
-      logger.error('CONTEXT_BUS_ERROR', error, { step: 'customer_profile', leadId: params.leadId });
+      logger.error('CONTEXT_BUS_ERROR', error, { step: 'customer_profile_and_memory', leadId: params.leadId });
     }
   }
 

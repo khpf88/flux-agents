@@ -41,6 +41,8 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
       CONTEXT:
       Business: ${JSON.stringify(context.business_profile)}
       Customer: ${JSON.stringify(context.customer_profile)}
+      Conversation State: ${JSON.stringify(context.conversation_state)}
+      History Summary: ${JSON.stringify(context.memory_summary)}
       Recent Memory: ${JSON.stringify(context.agent_memory)}
       Schedule Info: ${JSON.stringify(context.schedule)}
       
