@@ -79,7 +79,12 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
     }));
 
     eventBus.emitFluxEvent(EVENTS.OUTPUT.FOLLOWUP_COMPLETED, { toolResult }, correlationId, causationId);
-    logAgentStep(leadId, name, 'TOOL_EXECUTED', 'Action completed', { 
+    
+    // Determine step name for logging (e.g. AVAILABILITY_CHECKED)
+    const logStep = toolResult.type === 'availability' ? 'AVAILABILITY_CHECKED' : 
+                   toolResult.type === 'booking' ? 'BOOKING_CREATED' : 'TOOL_EXECUTED';
+
+    logAgentStep(leadId, name, logStep, 'Action completed', { 
       duration: `${Date.now() - startTime}ms`,
       result: toolResult 
     });

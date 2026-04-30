@@ -1,6 +1,8 @@
 import { logger } from '../logger.js';
 import { eventBus, EVENTS } from '../events/event_bus.js';
 
+import db from '../db.js';
+
 /**
  * Tool Registry
  * All modular tools are registered here.
@@ -17,6 +19,52 @@ const ToolRegistry: Record<string, Function> = {
     };
     
     eventBus.emitFluxEvent(EVENTS.OUTPUT.SMS_SENT, { leadId, recipient: result.recipient }, correlationId, causationId);
+    return result;
+  },
+
+  check_availability: async (parameters: any, leadId: number, correlationId: string, causationId: string) => {
+    // Mock availability logic: Tomorrow at 10am, 2pm, 4pm
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dateStr = tomorrow.toISOString().split('T')[0];
+
+    const slots = [
+      `${dateStr}T10:00:00Z`,
+      `${dateStr}T14:00:00Z`,
+      `${dateStr}T16:00:00Z`
+    ];
+
+    const result = {
+      success: true,
+      type: 'availability',
+      slots,
+      raw: `Found ${slots.length} available slots for ${dateStr}`
+    };
+
+    eventBus.emitFluxEvent(EVENTS.PROCESS.AVAILABILITY_CHECKED, { leadId, slots }, correlationId, causationId);
+    return result;
+  },
+
+  create_booking: async (parameters: any, leadId: number, correlationId: string, causationId: string) => {
+    const { startTime, durationMinutes = 30 } = parameters;
+    const start = new Date(startTime);
+    const end = new Date(start.getTime() + durationMinutes * 60000);
+
+    const info = db.prepare(`
+      INSERT INTO bookings (lead_id, start_time, end_time, status)
+      VALUES (?, ?, ?, ?)
+    `).run(leadId, start.toISOString(), end.toISOString(), 'confirmed');
+
+    const result = {
+      success: true,
+      type: 'booking',
+      bookingId: info.lastInsertRowid,
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+      raw: `Booking created for lead ${leadId} at ${start.toISOString()}`
+    };
+
+    eventBus.emitFluxEvent(EVENTS.OUTPUT.BOOKING_CONFIRMED, { leadId, bookingId: result.bookingId }, correlationId, causationId);
     return result;
   }
 };

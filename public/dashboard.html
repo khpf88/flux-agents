@@ -14,6 +14,7 @@
         .event-process { border-left-color: #ffc107 !important; }
         .event-output { border-left-color: #0d6efd !important; }
         .event-system { border-left-color: #dc3545 !important; }
+        .event-booking { border-left-color: #198754 !important; }
         .log-card { border-radius: 8px; border: none; margin-bottom: 10px; border-left-width: 5px !important; }
         .category-badge { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.5px; }
         #logsList::-webkit-scrollbar { width: 5px; }
@@ -23,7 +24,7 @@
 <body class="bg-light">
     <nav class="navbar navbar-dark bg-dark shadow-sm">
         <div class="container-fluid">
-            <a class="navbar-brand fw-bold" href="#">FLUX AGENTS <span class="badge bg-primary ms-2" style="font-size: 0.6rem;">v1.4</span></a>
+            <a class="navbar-brand fw-bold" href="#">FLUX AGENTS <span class="badge bg-primary ms-2" style="font-size: 0.6rem;">v1.5 Scheduler</span></a>
             <button class="btn btn-sm btn-outline-light border-0" onclick="fetchData()">🔄 Sync</button>
         </div>
     </nav>
@@ -46,7 +47,7 @@
             <div class="col-md-4">
                 <div class="card metric-card p-3 bg-white">
                     <small class="text-muted text-uppercase fw-bold" style="font-size: 0.7rem;">Avg Speed</small>
-                    <h2 class="mb-0 text-warning">~1.2s</h2>
+                    <h2 id="metricSpeed" class="mb-0 text-warning">-</h2>
                 </div>
             </div>
         </div>
@@ -110,6 +111,7 @@
                 const stats = await statsRes.json();
                 document.getElementById('metricLeads').innerText = stats.totalLeads;
                 document.getElementById('metricResponses').innerText = stats.totalResponses;
+                document.getElementById('metricSpeed').innerText = stats.avgResponseTime;
 
                 // Leads
                 const leadsRes = await fetch('/api/leads');
@@ -159,28 +161,37 @@
                     borderClass = 'event-input';
                     badgeClass = 'bg-info text-dark';
                     category = 'Input';
-                } else if (l.step === 'TOOL_EXECUTED') {
-                    borderClass = 'event-output';
-                    badgeClass = 'bg-primary';
-                    category = 'Output';
+                } else if (l.step === 'ERROR') {
+                    borderClass = 'event-system';
+                    badgeClass = 'bg-danger';
+                    category = 'System';
+                } else if (l.step === 'TOOL_EXECUTED' || l.step === 'AVAILABILITY_CHECKED' || l.step === 'BOOKING_CREATED') {
+                    borderClass = l.step === 'TOOL_EXECUTED' ? 'event-output' : 'event-booking';
+                    badgeClass = l.step === 'TOOL_EXECUTED' ? 'bg-primary' : 'bg-success';
+                    category = l.step === 'TOOL_EXECUTED' ? 'Output' : 'Booking';
                     
                     try {
                         const d = JSON.parse(l.details);
-                        // v1.3+ structured object check
                         const res = d.result;
                         if (res && res.type === 'sms') {
                             detailsHtml = `<div class="mt-2 p-2 bg-light border-start border-primary border-4 small rounded shadow-sm">
                                 <div class="text-primary fw-bold" style="font-size: 0.7rem;">OUTGOING SMS -> ${res.recipient}</div>
                                 <div class="fst-italic text-dark">"${res.message}"</div>
                             </div>`;
+                        } else if (res && res.type === 'availability') {
+                            detailsHtml = `<div class="mt-2 p-2 bg-light border-start border-success border-4 small rounded shadow-sm">
+                                <div class="text-success fw-bold" style="font-size: 0.7rem;">AVAILABILITY CHECKED</div>
+                                <div class="text-dark">Found slots: ${res.slots.map(s => new Date(s).toLocaleTimeString()).join(', ')}</div>
+                            </div>`;
+                        } else if (res && res.type === 'booking') {
+                            detailsHtml = `<div class="mt-2 p-2 bg-success text-white border-start border-dark border-4 small rounded shadow-sm">
+                                <div class="fw-bold" style="font-size: 0.7rem;">BOOKING CONFIRMED</div>
+                                <div>Time: ${new Date(res.startTime).toLocaleString()}</div>
+                            </div>`;
                         } else if (typeof res === 'string') {
                              detailsHtml = `<div class="mt-2 p-2 bg-light border-start border-primary border-4 small rounded fst-italic">${res}</div>`;
                         }
                     } catch(e) {}
-                } else if (l.step === 'ERROR') {
-                    borderClass = 'event-system';
-                    badgeClass = 'bg-danger';
-                    category = 'System';
                 }
 
                 return `

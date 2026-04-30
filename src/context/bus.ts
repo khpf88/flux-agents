@@ -7,6 +7,10 @@ export interface AgentContext {
   conversation_history: any[];
   system_state: Record<string, any>;
   agent_memory?: any[];
+  schedule?: {
+    existing_bookings: any[];
+    business_hours: any;
+  };
 }
 
 /**
@@ -21,6 +25,10 @@ export async function getContext(params: { leadId?: number, agentTemplateId?: st
     system_state: { 
       timestamp: new Date().toISOString(),
       platform: 'Flux Agents v1.2'
+    },
+    schedule: {
+      existing_bookings: [],
+      business_hours: { mon_fri: "9am-5pm", sat_sun: "closed" }
     }
   };
 
@@ -52,6 +60,17 @@ export async function getContext(params: { leadId?: number, agentTemplateId?: st
     } catch (error) {
       logger.error('CONTEXT_BUS_ERROR', error, { step: 'agent_memory', agentTemplateId: params.agentTemplateId });
     }
+  }
+
+  // 4. Fetch Existing Bookings
+  try {
+    context.schedule!.existing_bookings = db.prepare(`
+      SELECT * FROM bookings 
+      WHERE start_time > datetime('now')
+      ORDER BY start_time ASC
+    `).all();
+  } catch (error) {
+    logger.error('CONTEXT_BUS_ERROR', error, { step: 'existing_bookings' });
   }
 
   return context;

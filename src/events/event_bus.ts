@@ -76,18 +76,25 @@ export const eventBus = new GlobalEventBus();
  * Event Categories
  */
 export const EVENTS = {
+  // Input Events
   INPUT: {
     LEAD_CREATED: 'input:lead_created',
     INCOMING_MESSAGE: 'input:incoming_message',
   },
+  // Processing Events
   PROCESS: {
     AGENT_TRIGGERED: 'process:agent_triggered',
     DECISION_MADE: 'process:decision_made',
+    AVAILABILITY_CHECKED: 'process:availability_checked',
+    BOOKING_CREATED: 'process:booking_created',
   },
+  // Output Events
   OUTPUT: {
     SMS_SENT: 'output:sms_sent',
+    BOOKING_CONFIRMED: 'output:booking_confirmed',
     FOLLOWUP_COMPLETED: 'output:followup_completed',
   },
+  // System Events
   SYSTEM: {
     AGENT_FAILED: 'system:agent_failed',
     TOOL_FAILED: 'system:tool_failed',

@@ -15,8 +15,13 @@ export function initializeOrchestrator() {
     const lead = event.payload;
     logger.info('ORCHESTRATOR_MAPPING', { lead_id: lead.id, correlationId: event.correlationId });
 
+    // Intent Detection (Simple Keyword-based for MVP)
+    const schedulingKeywords = ['book', 'schedule', 'appointment', 'call', 'available', 'tomorrow', 'meeting'];
+    const message = (lead.message || '').toLowerCase();
+    const hasSchedulingIntent = schedulingKeywords.some(keyword => message.includes(keyword));
+
     // Decide which agent to trigger
-    const agentId = 'lead_followup_agent';
+    const agentId = hasSchedulingIntent ? 'scheduler_agent' : 'lead_followup_agent';
 
     eventBus.emitFluxEvent(
       EVENTS.PROCESS.AGENT_TRIGGERED,

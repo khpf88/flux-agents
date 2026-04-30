@@ -42,7 +42,7 @@ app.post('/api/leads', (req, res) => {
         message: err.message
       }));
       
-      logger.error('VALIDATION_FAILED', { details: errorDetails, body: req.body });
+      logger.error('VALIDATION_FAILED', { message: 'Validation failed' }, { details: errorDetails, body: req.body });
       return res.status(400).json({ 
         error: 'Validation Error', 
         details: errorDetails 
