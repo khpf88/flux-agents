@@ -8,7 +8,8 @@ The system is built on a decoupled, modular architecture where components commun
 
 ## 3. Key Features
 - **Event-Driven Workflow**: Uses a single unified event bus with `input`, `process`, `output`, and `system` event categories.
-- **Intent Classifier Agent (NEW)**: A central agent that interprets customer messages to determine the best routing path, replacing fragile keyword matching.
+- **Intent Classifier Agent**: A central agent that interprets customer messages to determine the best routing path, replacing fragile keyword matching.
+- **Agent Routing Engine**: Supports confidence-based routing and automated fallback to general agents.
 - **Traceable Execution**: Every action is linked via `eventId`, `correlationId`, and `causationId`.
 - **Scheduler Agent**: Parses natural language dates, checks availability, and creates formal bookings.
 - **Idempotency**: Persistent database-backed protection against duplicate event processing.
@@ -21,6 +22,6 @@ The system is built on a decoupled, modular architecture where components commun
 - Node.js / TypeScript (ESM)
 - SQLite (better-sqlite3)
 - Gemini 1.5 Flash
-- Zod (validation)
+- Zod (v3 stable validation)
 - P-Queue (async worker)
 - Bootstrap 5 UI

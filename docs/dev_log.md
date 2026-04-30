@@ -8,16 +8,10 @@
 - Introduced Dual-Memory Model (Experiential learning table).
 - Moved to standard correlation/causation ID tracking.
 
-## [2026-04-29] Hardening & UI Polish (v1.4)
-- Added Idempotency protection to the Event Bus.
-- Implemented retry logic for tool/agent failures.
-- Polished Dashboard with timeline views, SMS previews, and dynamic duration stats.
-- Automated status updates from "New" to "Followed-up".
-
-## [2026-04-29] Scheduler Agent (v1.5)
-- Implemented Scheduler Agent for automated booking.
-- Added intent detection to Orchestrator (Lead vs. Booking).
-- Created `check_availability` and `create_booking` modular tools.
-- Updated Context Bus to supply real-time availability data.
-- Added `bookings` table to database.
-- Enhanced Dashboard to visualize scheduling events.
+## [2026-04-29] Intent Engine & Decoupling (v1.6)
+- Implemented central Intent Classifier Agent for LLM-driven routing.
+- Fully decoupled Orchestrator from Worker using purely asynchronous event signals.
+- Added Agent ID Normalization to handle diverse LLM naming conventions.
+- Stabilized Zod environment by downgrading to stable v3.24.1.
+- Implemented persistent database-backed idempotency.
+- Enhanced Dashboard with Intent Analysis and Confidence metrics.
