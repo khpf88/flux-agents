@@ -174,6 +174,8 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
       // 3.2 Tool Name Healing (Local LLM Resilience)
       const toolMap: Record<string, string> = {
         'schedule_meeting': 'send_sms',
+        'propose_sms': 'send_sms',
+        'suggest_slots': 'send_sms',
         'book_appointment': 'create_booking',
         'check_slots': 'check_availability',
         'internal_analysis': 'skip',

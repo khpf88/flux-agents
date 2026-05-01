@@ -15,7 +15,7 @@
     "conversation_state",
     "memory_summary"
   ],
-  "reasoning": "1. Perform internal analysis of the lead's message and 'conversation_state'. 2. If 'conversation_state.state' is 'scheduling_requested', call 'check_availability'. 3. If 'conversation_state.state' is 'awaiting_time_selection', use 'conversation_state.proposed_slots' to propose an SMS by calling 'send_sms' with 2-3 specific options. 4. If the user confirms a slot, call 'create_booking'. 5. Always check 'memory_summary' for preferences like 'prefers afternoon'.",
+  "reasoning": "1. Perform internal analysis of the lead's message and 'conversation_state'. 2. If 'conversation_state.state' is 'scheduling_requested', call 'check_availability'. 3. If 'conversation_state.state' is 'awaiting_time_selection', use 'conversation_state.proposed_slots' and call 'send_sms' to list 2-3 specific options. 4. If the user confirms a slot, call 'create_booking'. 5. Always check 'memory_summary' for preferences like 'prefers afternoon'.",
   "tools": [
     {
       "name": "check_availability",
