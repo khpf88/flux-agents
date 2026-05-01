@@ -86,6 +86,32 @@ db.exec(`
   );
 `);
 
+// Migration: Update processed_events to support multi-subscriber idempotency
+try {
+  const tableInfo = db.prepare("PRAGMA table_info(processed_events)").all() as any[];
+  const hasHandlerName = tableInfo.some(col => col.name === 'handler_name');
+  
+  if (tableInfo.length > 0 && !hasHandlerName) {
+    console.log('Migrating processed_events table to support multi-subscriber idempotency...');
+    db.exec(`
+      ALTER TABLE processed_events RENAME TO processed_events_old;
+      CREATE TABLE processed_events (
+        event_id TEXT,
+        handler_name TEXT,
+        correlation_id TEXT,
+        processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (event_id, handler_name)
+      );
+      INSERT INTO processed_events (event_id, correlation_id, processed_at, handler_name)
+      SELECT event_id, correlation_id, processed_at, 'Legacy' FROM processed_events_old;
+      DROP TABLE processed_events_old;
+    `);
+    console.log('Migration complete.');
+  }
+} catch (migErr) {
+  console.error('Migration failed:', migErr);
+}
+
 // Seed config
 const count = db.prepare('SELECT COUNT(*) as count FROM business_config').get() as { count: number };
 if (count.count === 0) {
