@@ -17,7 +17,7 @@
   "tools": [
     {
       "name": "send_sms",
-      "description": "Sends an SMS message to the customer.",
+      "description": "Sends a plain text SMS message to the customer. The 'message' parameter MUST be a human-readable string, NOT JSON.",
       "parameters": {
         "phone": "string",
         "message": "string"

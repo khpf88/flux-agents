@@ -131,8 +131,16 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
 
       return validatedResult;
     } else if (agentTemplateId === 'response_composer_agent') {
-      const decision = rawResult; // Composer outputs object with message
+      let decision = rawResult; // Composer outputs object with message
       
+      // Healing: If message is stringified JSON, try to extract 'message' field
+      if (typeof decision.message === 'string' && decision.message.startsWith('{')) {
+        try {
+          const inner = JSON.parse(decision.message);
+          decision.message = inner.message || inner.content || decision.message;
+        } catch (e) { /* Ignore */ }
+      }
+
       // Update phase to finalized
       await MemoryAgent.handleSystemTransition(leadId, 'PHASE_FINALIZED', {}, correlationId);
 
@@ -157,18 +165,27 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
 
       // 4. Tool Execution / Output Proposal
       if (decision.tool === 'send_sms') {
+        // Healing: Extract message from stringified JSON if needed
+        let message = decision.parameters.message;
+        if (typeof message === 'string' && message.startsWith('{')) {
+          try {
+            const inner = JSON.parse(message);
+            message = inner.message || inner.content || message;
+          } catch (e) { /* Ignore */ }
+        }
+
         // INTERCEPT: Propose action to Coordinator instead of executing
         eventBus.emitFluxEvent(EVENTS.PROCESS.AGENT_OUTPUT_READY, {
           agentId: agentTemplateId,
           proposed_action: {
             type: 'sms',
             priority: agentTemplateId === 'scheduler_agent' ? 'high' : 'medium',
-            content: decision.parameters.message,
+            content: message,
             data: decision.parameters
           }
         }, correlationId, causationId);
         
-        logAgentStep(leadId, name, 'OUTPUT_PROPOSED', 'Proposed SMS response to Coordinator', { message: decision.parameters.message }, correlationId);
+        logAgentStep(leadId, name, 'OUTPUT_PROPOSED', 'Proposed SMS response to Coordinator', { message: message }, correlationId);
 
         // Record to Agent Memory even for proposals
         db.prepare(`
