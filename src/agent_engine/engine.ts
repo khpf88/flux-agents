@@ -8,6 +8,7 @@ import { AgentDecisionSchema, IntentClassificationSchema } from '../validation.j
 import { logAgentStep } from './logger.js';
 import { eventBus, EVENTS } from '../events/event_bus.js';
 import db from '../db.js';
+import { MemoryAgent } from '../memory/memory_agent.js';
 
 /**
  * Agent Engine
