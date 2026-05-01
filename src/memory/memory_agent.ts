@@ -142,8 +142,9 @@ export class MemoryAgent {
       LIMIT 20
     `).all(leadId) as { role: string, content: string }[];
 
-    if (turns.length === 0) {
-      return { summary: "No conversation history.", key_facts: [], sentiment: "neutral" };
+    // Optimization: Don't summarize if there's only one turn (usually the initial message)
+    if (turns.length <= 1) {
+      return { summary: "Conversation started.", key_facts: [], sentiment: "neutral" };
     }
 
     const historyStr = turns.map(t => `${t.role.toUpperCase()}: ${t.content}`).join('\n');

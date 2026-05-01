@@ -73,6 +73,15 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(lead_id) REFERENCES leads(id)
   );
+
+  CREATE TABLE IF NOT EXISTS llm_cache (
+    prompt_hash TEXT PRIMARY KEY,
+    prompt TEXT NOT NULL,
+    response TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Seed config
