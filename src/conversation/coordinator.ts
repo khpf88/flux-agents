@@ -30,7 +30,7 @@ class ConversationCoordinator {
 
   public initialize() {
     // Listen for agent proposals
-    eventBus.subscribe(EVENTS.PROCESS.AGENT_OUTPUT_READY, (event: FluxEvent) => {
+    eventBus.subscribe(EVENTS.PROCESS.AGENT_OUTPUT_READY, 'Coordinator', (event: FluxEvent) => {
       this.handleProposal(event);
     });
   }

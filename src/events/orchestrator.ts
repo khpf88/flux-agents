@@ -21,7 +21,7 @@ export function initializeOrchestrator() {
   };
 
   // 1. Lead Created -> Trigger Intent Classifier Agent
-  eventBus.subscribe(EVENTS.INPUT.LEAD_CREATED, async (event: FluxEvent) => {
+  eventBus.subscribe(EVENTS.INPUT.LEAD_CREATED, 'Orchestrator:LeadCreated', async (event: FluxEvent) => {
     const lead = event.payload;
     logger.info('ORCHESTRATOR_START', { lead_id: lead.id, correlationId: event.correlationId });
 
@@ -38,7 +38,7 @@ export function initializeOrchestrator() {
   });
 
   // 2. Intent Classified -> Update Memory & Route to Downstream Agent(s)
-  eventBus.subscribe(EVENTS.PROCESS.INTENT_CLASSIFIED, async (event: FluxEvent) => {
+  eventBus.subscribe(EVENTS.PROCESS.INTENT_CLASSIFIED, 'Orchestrator:IntentClassified', async (event: FluxEvent) => {
     const { intent, leadId } = event.payload;
     const { primary_intent, confidence, routing } = intent;
     
@@ -92,7 +92,7 @@ export function initializeOrchestrator() {
   });
 
   // 3. Availability Checked -> Re-trigger Scheduler for Step 2 (Send SMS)
-  eventBus.subscribe(EVENTS.PROCESS.AVAILABILITY_CHECKED, async (event: FluxEvent) => {
+  eventBus.subscribe(EVENTS.PROCESS.AVAILABILITY_CHECKED, 'Orchestrator:AvailabilityChecked', async (event: FluxEvent) => {
     const { leadId, slots } = event.payload;
     logger.info('AVAILABILITY_READY', { leadId, slotCount: slots.length });
 
@@ -111,13 +111,13 @@ export function initializeOrchestrator() {
   });
 
   // 3.5 Booking Created -> Update State
-  eventBus.subscribe(EVENTS.PROCESS.BOOKING_CREATED, async (event: FluxEvent) => {
+  eventBus.subscribe(EVENTS.PROCESS.BOOKING_CREATED, 'Orchestrator:BookingCreated', async (event: FluxEvent) => {
     const { leadId, startTime } = event.payload;
     await MemoryAgent.handleSystemTransition(leadId, 'BOOKING_CREATED', { startTime }, event.correlationId);
   });
 
   // 3.6 Composition Requested -> Trigger Response Composer Agent
-  eventBus.subscribe(EVENTS.PROCESS.COMPOSITION_REQUESTED, async (event: FluxEvent) => {
+  eventBus.subscribe(EVENTS.PROCESS.COMPOSITION_REQUESTED, 'Orchestrator:CompositionRequested', async (event: FluxEvent) => {
     const { lead_id, agent_outputs } = event.payload;
     
     eventBus.emitFluxEvent(
@@ -132,7 +132,7 @@ export function initializeOrchestrator() {
   });
 
   // 4. Final Response Ready -> Record Assistant Turn & Summarize
-  eventBus.subscribe(EVENTS.OUTPUT.FINAL_RESPONSE_READY, async (event: FluxEvent) => {
+  eventBus.subscribe(EVENTS.OUTPUT.FINAL_RESPONSE_READY, 'Orchestrator:FinalResponseReady', async (event: FluxEvent) => {
     const { leadId, message } = event.payload;
     
     // Record assistant's response
@@ -147,7 +147,7 @@ export function initializeOrchestrator() {
   });
 
   // 4. Retry Logic (Simple MVP)
-  eventBus.subscribe(EVENTS.SYSTEM.RETRY_REQUESTED, (event: FluxEvent) => {
+  eventBus.subscribe(EVENTS.SYSTEM.RETRY_REQUESTED, 'Orchestrator:RetryRequested', (event: FluxEvent) => {
     const { agentId, inputData, attempt } = event.payload;
     
     if (attempt > 1) {

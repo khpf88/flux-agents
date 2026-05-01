@@ -51,9 +51,11 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS processed_events (
-    event_id TEXT PRIMARY KEY,
+    event_id TEXT,
+    handler_name TEXT,
     correlation_id TEXT,
-    processed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (event_id, handler_name)
   );
 
   CREATE TABLE IF NOT EXISTS conversation_turns (

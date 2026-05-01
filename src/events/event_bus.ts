@@ -47,26 +47,26 @@ class GlobalEventBus extends EventEmitter {
   /**
    * Idempotency wrapper for subscribers
    */
-  subscribe(eventName: string, handler: (event: FluxEvent) => Promise<void> | void) {
+  subscribe(eventName: string, handlerName: string, handler: (event: FluxEvent) => Promise<void> | void) {
     this.on(eventName, async (event: FluxEvent) => {
-      // 1. Atomically mark as processed in DB
+      // 1. Atomically mark as processed for THIS handler in DB
       try {
-        const stmt = db.prepare('INSERT OR IGNORE INTO processed_events (event_id, correlation_id) VALUES (?, ?)');
-        const result = stmt.run(event.eventId, event.correlationId);
+        const stmt = db.prepare('INSERT OR IGNORE INTO processed_events (event_id, handler_name, correlation_id) VALUES (?, ?, ?)');
+        const result = stmt.run(event.eventId, handlerName, event.correlationId);
         
         if (result.changes === 0) {
-          console.warn(`[Idempotency] Skipping duplicate event (DB): ${event.eventId} (${event.event})`);
+          console.warn(`[Idempotency] Skipping duplicate event (DB): ${event.eventId} for handler: ${handlerName}`);
           return;
         }
       } catch (error) {
-        console.error(`[Bus] Error marking event ${event.event} as processed:`, error);
+        console.error(`[Bus] Error marking event ${event.event} for handler ${handlerName} as processed:`, error);
         return;
       }
 
       try {
         await handler(event);
       } catch (error) {
-        console.error(`[Bus] Error processing event ${event.event}:`, error);
+        console.error(`[Bus] Error processing event ${event.event} in handler ${handlerName}:`, error);
       }
     });
   }

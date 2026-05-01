@@ -12,7 +12,7 @@ const queue = new PQueue({ concurrency: 1 });
  * - Execute long-running AI tasks
  */
 export function initializeWorker() {
-  eventBus.subscribe(EVENTS.PROCESS.AGENT_TRIGGERED, async (event: FluxEvent) => {
+  eventBus.subscribe(EVENTS.PROCESS.AGENT_TRIGGERED, 'Worker', async (event: FluxEvent) => {
     const { agentId, inputData, attempt = 0 } = event.payload;
     const correlationId = event.correlationId;
 

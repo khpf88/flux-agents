@@ -31,19 +31,28 @@ initializeOrchestrator();
 initializeWorker();
 coordinator.initialize();
 
+import { logAgentStep } from './agent_engine/logger.js';
+
 // Final Output Listener
 // Only the Coordinator's final response event can trigger an actual SMS send
-eventBus.subscribe(EVENTS.OUTPUT.FINAL_RESPONSE_READY, async (event: FluxEvent) => {
+eventBus.subscribe(EVENTS.OUTPUT.FINAL_RESPONSE_READY, 'FinalDelivery', async (event: FluxEvent) => {
   const { phone, message, leadId } = event.payload;
   logger.info('FINAL_OUTPUT_DELIVERY_STARTED', { leadId, correlationId: event.correlationId });
   
   try {
-    await executeTool('send_sms', { phone, message }, leadId, event.correlationId, event.eventId);
+    const result = await executeTool('send_sms', { phone, message }, leadId, event.correlationId, event.eventId);
     logger.info('FINAL_OUTPUT_SMS_SENT', { leadId });
     
+    // Log Agent Step for Dashboard visibility
+    logAgentStep(leadId, 'System', 'FINAL_SMS_SENT', 'Outbound SMS delivered to customer', { 
+      phone, 
+      message,
+      result: result.raw 
+    }, event.correlationId);
+
     // Update Lead Status upon successful final delivery
-    const result = db.prepare("UPDATE leads SET status = 'Followed-up' WHERE id = ?").run(leadId);
-    logger.info('FINAL_OUTPUT_LEAD_STATUS_UPDATED', { leadId, changes: result.changes });
+    const updateResult = db.prepare("UPDATE leads SET status = 'Followed-up' WHERE id = ?").run(leadId);
+    logger.info('FINAL_OUTPUT_LEAD_STATUS_UPDATED', { leadId, changes: updateResult.changes });
     
   } catch (error) {
     logger.error('FINAL_OUTPUT_FAILED', error, { leadId });
