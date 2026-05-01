@@ -31,7 +31,8 @@ async function generateOllama(prompt: string) {
       body: JSON.stringify({
         model: model,
         prompt: prompt,
-        stream: false
+        stream: false,
+        format: "json"
       })
     });
 

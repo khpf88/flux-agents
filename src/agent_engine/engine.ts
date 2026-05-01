@@ -65,9 +65,16 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
     const response = await generateContent(prompt);
     
     // 3. Decision/Classification & Validation
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('LLM_MALFORMED_JSON');
-    const rawResult = JSON.parse(jsonMatch[0]);
+    let rawResult;
+    try {
+      // Try parsing the whole response first (standard for JSON mode)
+      rawResult = JSON.parse(response);
+    } catch (e) {
+      // Fallback: Try extracting JSON if model included text
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error(`LLM_MALFORMED_JSON: ${response}`);
+      rawResult = JSON.parse(jsonMatch[0]);
+    }
 
     let validatedResult;
     if (agentTemplateId === 'intent_classifier_agent') {
