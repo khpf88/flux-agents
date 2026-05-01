@@ -129,6 +129,20 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
       }
 
       return validatedResult;
+    } else if (agentTemplateId === 'response_composer_agent') {
+      const decision = rawResult; // Composer outputs object with message
+      
+      // Update phase to finalized
+      await MemoryAgent.handleSystemTransition(leadId, 'PHASE_FINALIZED', {}, correlationId);
+
+      eventBus.emitFluxEvent(EVENTS.OUTPUT.FINAL_RESPONSE_READY, {
+        phone: context.customer_profile?.phone,
+        message: decision.message,
+        leadId
+      }, correlationId, causationId);
+      
+      logAgentStep(leadId, name, 'COMPOSITION_COMPLETED', 'Final SMS composed and sent', { message: decision.message }, correlationId);
+      return { status: 'finalized' };
     } else {
       // Standard Agent Decision (Tool Call)
       const parseResult = AgentDecisionSchema.safeParse(rawResult);
@@ -168,24 +182,10 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
         }));
 
         return { status: 'proposed', type: 'sms' };
-    } else if (agentTemplateId === 'response_composer_agent') {
-      const decision = rawResult; // Composer outputs object with message
-      
-      // Update phase to finalized
-      await MemoryAgent.handleSystemTransition(leadId, 'PHASE_FINALIZED', {}, correlationId);
+      }
 
-      eventBus.emitFluxEvent(EVENTS.OUTPUT.FINAL_RESPONSE_READY, {
-        phone: context.customer_profile?.phone,
-        message: decision.message,
-        leadId
-      }, correlationId, causationId);
-      
-      logAgentStep(leadId, name, 'COMPOSITION_COMPLETED', 'Final SMS composed and sent', { message: decision.message }, correlationId);
-      return { status: 'finalized' };
-    }
-
-    // Standard internal Tool Execution (e.g. check_availability, create_booking)
-    let toolResult;
+      // Standard internal Tool Execution (e.g. check_availability, create_booking)
+      let toolResult;
       try {
         toolResult = await executeTool(decision.tool, decision.parameters, leadId, correlationId, causationId);
       } catch (toolError: any) {
