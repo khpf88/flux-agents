@@ -37,6 +37,7 @@ import { logAgentStep } from './agent_engine/logger.js';
 // Only the Coordinator's final response event can trigger an actual SMS send
 eventBus.subscribe(EVENTS.OUTPUT.FINAL_RESPONSE_READY, 'FinalDelivery', async (event: FluxEvent) => {
   const { phone, message, leadId } = event.payload;
+  console.log(`[FinalDelivery] Handling event for lead ${leadId}. Correlation: ${event.correlationId}`);
   logger.info('FINAL_OUTPUT_DELIVERY_STARTED', { leadId, correlationId: event.correlationId });
   
   try {
