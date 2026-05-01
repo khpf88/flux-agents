@@ -5,7 +5,7 @@ import { eventBus, EVENTS } from '../events/event_bus.js';
 
 export interface ConversationState {
   lead_id: number;
-  state: 'new_lead' | 'scheduling_requested' | 'awaiting_availability' | 'awaiting_time_selection' | 'booking_confirmed' | 'general_inquiry';
+  state: 'new_lead' | 'scheduling_requested' | 'awaiting_availability' | 'awaiting_time_selection' | 'awaiting_confirmation' | 'booking_confirmed' | 'general_inquiry';
   phase: 'collecting' | 'coordinating' | 'finalized';
   active_intent: string | null;
   last_agent: string | null;

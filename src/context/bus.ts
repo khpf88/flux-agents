@@ -54,11 +54,11 @@ export async function getContext(params: { leadId?: number, agentTemplateId?: st
       context.conversation_state = state;
       context.memory_summary = memory;
 
-      // Raw history (turns)
+      // Raw history (turns) - Trimmed for latency
       context.conversation_history = db.prepare(`
         SELECT role, content FROM conversation_turns 
         WHERE lead_id = ? 
-        ORDER BY created_at DESC LIMIT 10
+        ORDER BY created_at DESC LIMIT 3
       `).all(params.leadId);
 
     } catch (error) {

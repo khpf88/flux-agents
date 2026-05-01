@@ -132,7 +132,7 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
       return validatedResult;
     } else if (agentTemplateId === 'response_composer_agent') {
       let decision = rawResult; // Composer outputs object with message
-      
+
       // Healing: If message is stringified JSON, try to extract 'message' field
       if (typeof decision.message === 'string' && decision.message.startsWith('{')) {
         try {
@@ -141,18 +141,29 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
         } catch (e) { /* Ignore */ }
       }
 
-      // Update phase to finalized
-      await MemoryAgent.handleSystemTransition(leadId, 'PHASE_FINALIZED', {}, correlationId);
+      // Update phase and potentially state
+      const { state: currentState } = await MemoryAgent.loadMemory(leadId);
+      let nextState = currentState.state;
+      if (currentState.state === 'awaiting_time_selection') {
+        nextState = 'awaiting_confirmation'; // Progress the booking state
+      }
+
+      await MemoryAgent.persistMemory(leadId, { ...currentState, state: nextState, phase: 'finalized' }, context.memory_summary!);
 
       eventBus.emitFluxEvent(EVENTS.OUTPUT.FINAL_RESPONSE_READY, {
         phone: context.customer_profile?.phone,
         message: decision.message,
         leadId
       }, correlationId, causationId);
-      
-      logAgentStep(leadId, name, 'COMPOSITION_COMPLETED', 'Final SMS composed and sent', { message: decision.message }, correlationId);
+
+      logAgentStep(leadId, name, 'COMPOSITION_COMPLETED', 'Final SMS composed and ready', { 
+        message: decision.message,
+        progression: `${currentState.state} -> ${nextState}`
+      }, correlationId);
+
       return { status: 'finalized' };
-    } else {
+    }
+ else {
       // Standard Agent Decision (Tool Call)
       const parseResult = AgentDecisionSchema.safeParse(rawResult);
       if (!parseResult.success) {
