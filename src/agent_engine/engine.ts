@@ -159,6 +159,24 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
         throw new Error(`AGENT_DECISION_VALIDATION_FAILED: ${JSON.stringify(parseResult.error.issues)}`);
       }
       const decision = parseResult.data;
+
+      // 3.2 Tool Name Healing (Local LLM Resilience)
+      const toolMap: Record<string, string> = {
+        'schedule_meeting': 'send_sms',
+        'book_appointment': 'create_booking',
+        'check_slots': 'check_availability',
+        'internal_analysis': 'skip',
+        'analyze_lead_message': 'skip'
+      };
+
+      if (toolMap[decision.tool]) {
+        if (toolMap[decision.tool] === 'skip') {
+          logger.warn('HALLUCINATED_TOOL_SKIPPED', { tool: decision.tool, leadId });
+          return { status: 'skipped', reason: 'hallucinated_internal_tool' };
+        }
+        logger.info('TOOL_NAME_HEALED', { from: decision.tool, to: toolMap[decision.tool], leadId });
+        decision.tool = toolMap[decision.tool];
+      }
       
       eventBus.emitFluxEvent(EVENTS.PROCESS.DECISION_MADE, { decision }, correlationId, causationId);
       logAgentStep(leadId, name, 'DECISION', `Agent selected tool: ${decision.tool}`, decision.parameters, correlationId);
