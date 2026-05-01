@@ -82,8 +82,15 @@ async function generateOllama(prompt: string) {
 /**
  * Unified Entry Point
  */
-export async function generateContent(prompt: string) {
+export async function generateContent(prompt: string, options: { skipCache?: boolean } = {}) {
   const provider = (process.env.LLM_PROVIDER || 'gemini').toLowerCase();
+  const model = provider === 'ollama' ? (process.env.OLLAMA_MODEL || 'llama3.2') : (process.env.GEMINI_MODEL || 'gemini-1.5-flash');
+
+  if (options.skipCache) {
+    const hash = crypto.createHash('sha256').update(prompt).digest('hex');
+    db.prepare('DELETE FROM llm_cache WHERE prompt_hash = ? AND provider = ? AND model = ?')
+      .run(hash, provider, model);
+  }
 
   try {
     if (provider === 'ollama') {

@@ -18,7 +18,7 @@ export function initializeWorker() {
 
     queue.add(async () => {
       try {
-        await runAgent(agentId, inputData, correlationId, event.eventId);
+        await runAgent(agentId, inputData, correlationId, event.eventId, attempt);
       } catch (error: any) {
         logger.error('WORKER_JOB_FAILED', error, { agentId, correlationId });
         

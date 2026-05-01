@@ -18,7 +18,7 @@ import db from '../db.js';
  * - Validate structured output (Decision or Classification)
  * - Record to Agent Memory
  */
-export async function runAgent(agentTemplateId: string, inputData: any, correlationId: string, causationId: string) {
+export async function runAgent(agentTemplateId: string, inputData: any, correlationId: string, causationId: string, attempt: number = 0) {
   const agentPath = path.join(process.cwd(), 'agents', `${agentTemplateId}.json`);
   
   // Validation: Check if agent definition exists physically
@@ -69,7 +69,7 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
     `;
 
     logAgentStep(leadId, name, 'REASONING', 'Analyzing data for structured output...', undefined, correlationId);
-    const response = await generateContent(prompt);
+    const response = await generateContent(prompt, { skipCache: attempt > 0 });
     
     // 3. Decision/Classification & Validation
     let rawResult;

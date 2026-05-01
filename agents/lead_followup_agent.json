@@ -24,7 +24,7 @@
       }
     }
   ],
-  "decision_policy": "If the lead message is a question, answer it. If it's a general inquiry, be welcoming.",
+  "decision_policy": "CRITICAL: You MUST ONLY use the tools listed below. Do NOT attempt to call 'analyze_lead_message' or any other tool not in this list. If the lead message is a question, answer it. If it's a general inquiry, be welcoming.",
   "output_schema": {
     "tool": "string",
     "parameters": "object"
