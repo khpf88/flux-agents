@@ -78,6 +78,31 @@ export async function runAgent(agentTemplateId: string, inputData: any, correlat
 
     let validatedResult;
     if (agentTemplateId === 'intent_classifier_agent') {
+      // 3.1 Intent Healing (Local LLM Resilience)
+      const intentMap: Record<string, string> = {
+        'scheduling': 'schedule_meeting',
+        'schedule': 'schedule_meeting',
+        'appointment': 'schedule_meeting',
+        'booking': 'schedule_meeting',
+        'inquiry': 'general_inquiry',
+        'question': 'general_inquiry',
+        'support': 'urgent_support',
+        'pricing': 'pricing_question',
+        'ack': 'acknowledgement',
+        'confirm': 'acknowledgement'
+      };
+
+      if (rawResult.primary_intent && intentMap[rawResult.primary_intent.toLowerCase()]) {
+        rawResult.primary_intent = intentMap[rawResult.primary_intent.toLowerCase()];
+      }
+
+      // Normalize target_agents
+      if (rawResult.routing && Array.isArray(rawResult.routing.target_agents)) {
+        rawResult.routing.target_agents = rawResult.routing.target_agents.map((a: string) => 
+          a.toLowerCase().replace(/ /g, '_')
+        );
+      }
+
       const parseResult = IntentClassificationSchema.safeParse(rawResult);
       if (!parseResult.success) {
         throw new Error(`INTENT_CLASSIFICATION_VALIDATION_FAILED: ${JSON.stringify(parseResult.error.issues)}`);
