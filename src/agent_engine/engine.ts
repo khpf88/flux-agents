@@ -20,6 +20,13 @@ import db from '../db.js';
  */
 export async function runAgent(agentTemplateId: string, inputData: any, correlationId: string, causationId: string) {
   const agentPath = path.join(process.cwd(), 'agents', `${agentTemplateId}.json`);
+  
+  // Validation: Check if agent definition exists physically
+  if (!fs.existsSync(agentPath)) {
+    logger.error('AGENT_DEFINITION_NOT_FOUND', new Error(`File not found: ${agentPath}`), { agentId: agentTemplateId });
+    throw new Error(`AGENT_NOT_LOADABLE: ${agentTemplateId}`);
+  }
+
   const agentDef = JSON.parse(fs.readFileSync(agentPath, 'utf8'));
   const leadId = inputData.lead_id;
   

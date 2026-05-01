@@ -2,6 +2,8 @@ import { eventBus, EVENTS, FluxEvent } from './event_bus.js';
 import { logger } from '../logger.js';
 import { logAgentStep } from '../agent_engine/logger.js';
 import { MemoryAgent } from '../memory/memory_agent.js';
+import fs from 'node:fs';
+import path from 'node:path';
 
 /**
  * Orchestrator
@@ -13,6 +15,11 @@ import { MemoryAgent } from '../memory/memory_agent.js';
  */
 export function initializeOrchestrator() {
   
+  // Helper to validate agent exists
+  const agentExists = (agentId: string) => {
+    return fs.existsSync(path.join(process.cwd(), 'agents', `${agentId}.json`));
+  };
+
   // 1. Lead Created -> Trigger Intent Classifier Agent
   eventBus.subscribe(EVENTS.INPUT.LEAD_CREATED, async (event: FluxEvent) => {
     const lead = event.payload;
@@ -65,11 +72,19 @@ export function initializeOrchestrator() {
       // Normalize agent IDs to lowercase with underscores to match file names
       const normalizedAgentId = agentId.toLowerCase().replace(/ /g, '_');
       
-      logAgentStep(leadId, 'System', 'ROUTING', `Routing to ${normalizedAgentId}`, { primary_intent, confidence }, event.correlationId);
+      // Validation: Fallback if model hallucinated a non-existent agent
+      let finalAgentId = normalizedAgentId;
+      if (!agentExists(normalizedAgentId)) {
+        logger.warn('HALLUCINATED_AGENT_RECOVERY', { original: agentId, normalized: normalizedAgentId });
+        logAgentStep(leadId, 'System', 'ROUTING_FALLBACK', `Agent '${agentId}' not found. Falling back to lead_followup_agent.`, { original: agentId }, event.correlationId);
+        finalAgentId = 'lead_followup_agent';
+      }
+
+      logAgentStep(leadId, 'System', 'ROUTING', `Routing to ${finalAgentId}`, { primary_intent, confidence }, event.correlationId);
       
       eventBus.emitFluxEvent(
         EVENTS.PROCESS.AGENT_TRIGGERED,
-        { agentId: normalizedAgentId, inputData: { lead_id: leadId } },
+        { agentId: finalAgentId, inputData: { lead_id: leadId } },
         event.correlationId,
         event.eventId
       );

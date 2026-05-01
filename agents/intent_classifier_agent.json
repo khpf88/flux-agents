@@ -21,7 +21,7 @@
     "Confidence must be between 0 and 1.",
     "CRITICAL: The 'primary_intent' MUST be one of these exact strings: ['schedule_meeting', 'general_inquiry', 'service_request', 'pricing_question', 'urgent_support', 'acknowledgement', 'unknown']. Do NOT use 'scheduling' or any other variations.",
     "Routing target_agents should be an array. Suggest ONLY ONE specialized agent (e.g., 'scheduler_agent') if a specific action is needed. The Response Composer will handle the general tone and personalization.",
-    "Routing target_agents must be one of: ['scheduler_agent', 'lead_followup_agent']."
+    "Routing target_agents MUST ONLY be one of these exact values: ['scheduler_agent', 'lead_followup_agent']. Do NOT invent new agent names like 'service_request_agent'.",
   ],
   "output_schema": {
     "primary_intent": "string",
