@@ -7,6 +7,14 @@ export const logger = {
       ...data
     }));
   },
+  warn: (event: string, data: any) => {
+    console.warn(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: 'WARN',
+      event,
+      ...data
+    }));
+  },
   error: (event: string, error: any, data: any) => {
     console.error(JSON.stringify({
       timestamp: new Date().toISOString(),
